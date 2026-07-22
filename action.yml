@@ -48,6 +48,10 @@ inputs:
     description: "Which cloudcosttree release (tag in this repo) to download the binary + price catalog from. Defaults to the latest."
     required: false
     default: "latest"
+  terraform-version:
+    description: "Terraform version to install when infra-path needs a live 'terraform plan' and the runner doesn't already have terraform on PATH. Ignored if terraform is already installed (e.g. via hashicorp/setup-terraform)."
+    required: false
+    default: "1.9.8"
   github-token:
     description: "Token used to download the release asset and to post the PR comment via `gh`."
     required: false
@@ -64,6 +68,44 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Ensure Terraform is available
+      # Evaluating a .tf infra-path needs a real "terraform plan", and
+      # unlike the AWS CLI, Terraform isn't preinstalled on GitHub-hosted
+      # runners — every caller had to remember to add
+      # hashicorp/setup-terraform themselves, undocumented, before this
+      # action would work at all. Only installs one if the runner doesn't
+      # already have one on PATH, so a caller who already set up a specific
+      # version (hashicorp/setup-terraform, a pinned tfenv version, ...)
+      # keeps using exactly that one.
+      shell: bash
+      env:
+        TERRAFORM_VERSION: ${{ inputs.terraform-version }}
+      run: |
+        set -euo pipefail
+        if command -v terraform >/dev/null 2>&1; then
+          exit 0
+        fi
+
+        case "${{ runner.os }}" in
+          Linux) os=linux ;;
+          macOS) os=darwin ;;
+          Windows) os=windows ;;
+          *) echo "::error::Unsupported runner.os: ${{ runner.os }}"; exit 1 ;;
+        esac
+        case "${{ runner.arch }}" in
+          X64) arch=amd64 ;;
+          ARM64) arch=arm64 ;;
+          *) echo "::error::Unsupported runner.arch: ${{ runner.arch }}"; exit 1 ;;
+        esac
+
+        zip="terraform_${TERRAFORM_VERSION}_${os}_${arch}.zip"
+        url="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${zip}"
+        mkdir -p "$RUNNER_TEMP/terraform-dist"
+        curl -fsSL "$url" -o "$RUNNER_TEMP/terraform-dist/$zip"
+        unzip -o -q "$RUNNER_TEMP/terraform-dist/$zip" -d "$RUNNER_TEMP/terraform-dist"
+        chmod +x "$RUNNER_TEMP/terraform-dist/terraform"
+        echo "$RUNNER_TEMP/terraform-dist" >> "$GITHUB_PATH"
+
     - name: Download CloudCostTree
       shell: bash
       env:
