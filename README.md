@@ -42,17 +42,13 @@ my-infra.tf ($842.13/mo)
 
 ## Install
 
-Requires Go 1.26+.
+CloudCostTree is meant to be installed as the **VS Code extension** (see
+[VS Code extension](#vs-code-extension) below) or via the `cloudcosttree`
+CLI binary directly — not by cloning this repository.
 
-```
-git clone https://github.com/rulssss/Cost_tree.git
-cd Cost_tree
-go build -o cloudcosttree ./cmd/cloudcosttree
-```
-
-The binary is fully self-contained: `data/prices.json` (the bundled price
-catalog) travels with the repo, so a plain `analyze`/`tree`/`diff` run needs
-no AWS account or credentials at all. Only `update-prices` (fetches the
+The CLI is fully self-contained: `data/prices.json` (the bundled price
+catalog) travels with it, so a plain `analyze`/`tree`/`diff` run needs no
+AWS account or credentials at all. Only `update-prices` (fetches the
 project's published catalog over HTTPS) and the Pro `--with-usage` flag
 (your own AWS credentials) ever touch the network.
 
