@@ -360,11 +360,17 @@ print to stdout, pipeable): `md`, `csv`, `json`, `html`, or `pr-comment`
 ## CI/CD
 
 See [CI.md](CI.md) for the full guide — GitHub Actions (a ready-to-use
-composite action at [action.yml](action.yml)), GitLab CI, and Azure
-Pipelines, JSON/Markdown output, and PR annotations. The dedicated `ci`
-command group (`report` never fails the build; `check`/`diff` fail on a
-blocking policy violation) shares Free's 1,000-runs/month quota across a
-repo's pipelines; Pro is unlimited.
+composite action, published at
+[`rulssss/cloudcosttree`](https://github.com/rulssss/cloudcosttree) so it
+only ever downloads a prebuilt binary, never the private source repo),
+GitLab CI, and Azure Pipelines, JSON/Markdown output, and PR annotations.
+The dedicated `ci` command group (`report` never fails the build;
+`check`/`diff` fail on a blocking policy violation) shares Free's
+1,000-runs/month quota across a repo's pipelines (tracked per-repo
+server-side on GitHub Actions, since a fresh runner every job has nothing
+local to count against); Pro is unlimited, confirmed live on every run via
+a `license-key` input — no per-machine activation seat is spent doing this,
+unlike the normal desktop `license activate` flow.
 
 ## VS Code extension
 
