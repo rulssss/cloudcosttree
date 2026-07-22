@@ -52,6 +52,10 @@ inputs:
     description: "Terraform version to install when infra-path needs a live 'terraform plan' and the runner doesn't already have terraform on PATH. Ignored if terraform is already installed (e.g. via hashicorp/setup-terraform)."
     required: false
     default: "1.9.8"
+  license-key:
+    description: "CloudCostTree Pro license key (pass a GitHub secret, never a literal value). Confirmed live against the license service on every run, with no local state and no per-machine activation seat consumed — safe to use on every CI job. Omit to run as Free."
+    required: false
+    default: ""
   github-token:
     description: "Token used to download the release asset and to post the PR comment via `gh`."
     required: false
@@ -159,6 +163,7 @@ runs:
         BASELINE_PATH: ${{ inputs.baseline-path }}
         POLICIES_PATH: ${{ inputs.policies-path }}
         MODE: ${{ inputs.mode }}
+        CLOUDCOSTTREE_LICENSE_KEY: ${{ inputs.license-key }}
       run: |
         set -euo pipefail
 
