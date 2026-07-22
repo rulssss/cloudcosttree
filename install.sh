@@ -3,11 +3,14 @@
 # your OS/CPU from github.com/rulssss/cloudcosttree/releases and puts it
 # on your PATH. Usage:
 #
-#   curl -fsSL https://raw.githubusercontent.com/rulssss/cloudcosttree/main/install.sh | sh
+#   curl -fsSL https://cloudcosttree.com/install.sh | sh
 #
-# Override the install directory (default /usr/local/bin) with:
+# Override the install directory (default /usr/local/bin) by exporting the
+# variable first — NOT as a prefix on the same line as curl, which only
+# sets it for curl itself, not the sh on the other end of the pipe:
 #
-#   CLOUDCOSTTREE_INSTALL_DIR=~/.local/bin curl -fsSL ... | sh
+#   export CLOUDCOSTTREE_INSTALL_DIR=~/.local/bin
+#   curl -fsSL https://cloudcosttree.com/install.sh | sh
 
 set -e
 
