@@ -95,7 +95,7 @@ runs:
 
         mkdir -p "$RUNNER_TEMP/cloudcosttree-dist"
         gh release download "${version_flag[@]}" \
-          --repo "${{ github.action_repository }}" \
+          --repo "rulssss/cloudcosttree" \
           --pattern "$bin" \
           --pattern "prices.json" \
           --dir "$RUNNER_TEMP/cloudcosttree-dist" \
