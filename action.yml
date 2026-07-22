@@ -1,0 +1,211 @@
+# CloudCostTree composite GitHub Action — public entry point.
+#
+# Downloads a prebuilt `cloudcosttree` binary + price catalog from this
+# repo's GitHub Releases and runs `cloudcosttree ci report|check|diff`
+# against your infrastructure. Deliberately does NOT build from source: the
+# actual CLI source lives in a private repo, so this action only ever
+# touches a compiled binary — no source code is exposed by using it.
+#
+# Usage (from any repo):
+#
+#   - uses: actions/checkout@v4
+#   - uses: rulssss/cloudcosttree@main
+#     with:
+#       infra-path: ./infra
+#       policies-path: policies.yaml   # optional
+#
+# The calling workflow must check out its own repo first — infra-path is
+# resolved relative to that checkout.
+name: "CloudCostTree"
+description: "Analyze Terraform/CloudFormation/Pulumi cost impact and policy compliance, and comment on the PR."
+author: "CloudCostTree"
+
+inputs:
+  infra-path:
+    description: "Path to the infrastructure to analyze (Terraform root, .tfstate, CloudFormation template, ...). For 'diff' mode this is the current/PR-branch side."
+    required: true
+  baseline-path:
+    description: "Baseline infrastructure to compare infra-path against. Setting this switches the default mode to 'diff'."
+    required: false
+    default: ""
+  policies-path:
+    description: "Path to policies.yaml. Falls back to ./policies.yaml, then ~/.cloudcosttree/policies.yaml, same as the CLI."
+    required: false
+    default: ""
+  mode:
+    description: "'report' (never fails the build), 'check' (fails on blocking policy violations), or 'diff' (report + check against a baseline). Defaults to 'diff' when baseline-path is set, otherwise 'report'."
+    required: false
+    default: ""
+  comment-on-pr:
+    description: "Post (or update) the analysis as a PR comment when running on a pull_request event."
+    required: false
+    default: "true"
+  fail-on-blocking:
+    description: "Fail this step when a blocking ('error'/'deny') policy violation is found (exit code 2). Non-blocking 'warn' violations (exit code 1) never fail the step."
+    required: false
+    default: "true"
+  release-version:
+    description: "Which cloudcosttree release (tag in this repo) to download the binary + price catalog from. Defaults to the latest."
+    required: false
+    default: "latest"
+  github-token:
+    description: "Token used to download the release asset and to post the PR comment via `gh`."
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  exit-code:
+    description: "cloudcosttree's own exit code: 0 clean, 1 non-blocking violations only, 2 a blocking violation."
+    value: ${{ steps.run.outputs.exit_code }}
+  violations-found:
+    description: "\"true\" when exit-code is non-zero (any violation, blocking or not)."
+    value: ${{ steps.run.outputs.violations_found }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download CloudCostTree
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        RELEASE_VERSION: ${{ inputs.release-version }}
+      run: |
+        set -euo pipefail
+
+        case "${{ runner.os }}" in
+          Linux) os=linux ;;
+          macOS) os=darwin ;;
+          Windows) os=windows ;;
+          *) echo "::error::Unsupported runner.os: ${{ runner.os }}"; exit 1 ;;
+        esac
+
+        case "${{ runner.arch }}" in
+          X64) arch=amd64 ;;
+          ARM64) arch=arm64 ;;
+          *) echo "::error::Unsupported runner.arch: ${{ runner.arch }}"; exit 1 ;;
+        esac
+
+        bin="cloudcosttree-${os}-${arch}"
+        if [ "$os" = "windows" ]; then bin="${bin}.exe"; fi
+
+        version_flag=()
+        if [ "$RELEASE_VERSION" != "latest" ]; then
+          version_flag=(--tag "$RELEASE_VERSION")
+        fi
+
+        mkdir -p "$RUNNER_TEMP/cloudcosttree-dist"
+        gh release download "${version_flag[@]}" \
+          --repo "${{ github.action_repository }}" \
+          --pattern "$bin" \
+          --pattern "prices.json" \
+          --dir "$RUNNER_TEMP/cloudcosttree-dist" \
+          --clobber
+
+        target="$RUNNER_TEMP/cloudcosttree-dist/cloudcosttree"
+        if [ "$os" = "windows" ]; then target="${target}.exe"; fi
+        mv "$RUNNER_TEMP/cloudcosttree-dist/$bin" "$target"
+        chmod +x "$target"
+
+        echo "$RUNNER_TEMP/cloudcosttree-dist" >> "$GITHUB_PATH"
+        echo "CLOUDCOSTTREE_PRICES=$RUNNER_TEMP/cloudcosttree-dist/prices.json" >> "$GITHUB_ENV"
+
+    - name: Run analysis
+      id: run
+      shell: bash
+      env:
+        INFRA_PATH: ${{ inputs.infra-path }}
+        BASELINE_PATH: ${{ inputs.baseline-path }}
+        POLICIES_PATH: ${{ inputs.policies-path }}
+        MODE: ${{ inputs.mode }}
+      run: |
+        set -euo pipefail
+
+        mode="$MODE"
+        if [ -z "$mode" ]; then
+          if [ -n "$BASELINE_PATH" ]; then mode="diff"; else mode="report"; fi
+        fi
+
+        args=("$mode")
+        if [ "$mode" = "diff" ]; then
+          args+=("$BASELINE_PATH" "$INFRA_PATH")
+        else
+          args+=("$INFRA_PATH")
+        fi
+        if [ -n "$POLICIES_PATH" ]; then
+          args+=(-policies "$POLICIES_PATH")
+        fi
+        args+=(-prices "$CLOUDCOSTTREE_PRICES")
+        args+=(-export "pr-comment:$RUNNER_TEMP/cloudcosttree-comment.md")
+
+        set +e # capture the exit code ourselves instead of the step doing it
+        cloudcosttree ci "${args[@]}"
+        code=$?
+        set -e
+
+        # ci.ExitCode's 0/1/2 convention (clean / warn-only / blocking) only
+        # ever gets returned after cloudcosttree successfully produced a
+        # report — which is exactly when the pr-comment export file exists.
+        # A hard failure (bad credentials, unreadable/corrupt infra file,
+        # Terraform erroring out, ...) exits 1 too, via a plain os.Exit(1)
+        # that never reaches ci.ExitCode, so the export file is never
+        # written. Without this distinction, a hard failure looked
+        # identical to "only non-blocking warn violations" below: the build
+        # stayed green and printed a reassuring "not failing the build"
+        # notice even though CloudCostTree never actually analyzed
+        # anything.
+        comment_file="$RUNNER_TEMP/cloudcosttree-comment.md"
+        if [ "$code" -ne 0 ] && [ ! -f "$comment_file" ]; then
+          echo "::error::CloudCostTree failed to analyze the infrastructure (exit code $code) — see the command output above. This is not a policy violation; the check never completed."
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          echo "violations_found=false" >> "$GITHUB_OUTPUT"
+          echo "hard_error=true" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
+
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        echo "hard_error=false" >> "$GITHUB_OUTPUT"
+        if [ "$code" -eq 0 ]; then
+          echo "violations_found=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "violations_found=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Post analysis as a PR comment
+      if: always() && inputs.comment-on-pr == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      # A PR from a fork gets a read-only, restricted-permission
+      # GITHUB_TOKEN by default (a well-known GitHub Actions limitation, not
+      # something this workflow controls) — `gh pr comment` then fails with
+      # a 403 that has nothing to do with the actual cost/policy analysis.
+      # Without continue-on-error, that 403 alone failed the whole job,
+      # blocking a fork contributor's merge over a comment permission issue
+      # rather than any real violation. Posting the comment is a
+      # nice-to-have on top of the annotations/Step Summary (which always
+      # work regardless of token permissions), not the gate itself — the
+      # actual gate is the next step, keyed off cloudcosttree's own exit
+      # code.
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        comment_file="$RUNNER_TEMP/cloudcosttree-comment.md"
+        if [ -f "$comment_file" ]; then
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file "$comment_file" \
+            --edit-last || \
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file "$comment_file" || \
+          echo "::warning::Could not post the PR comment (often a restricted GITHUB_TOKEN on a fork PR) — the annotations above and the Step Summary still have the full analysis."
+        fi
+
+    - name: Fail the build on blocking policy violations
+      if: inputs.fail-on-blocking == 'true' && steps.run.outputs.exit_code == '2'
+      shell: bash
+      run: |
+        echo "::error::CloudCostTree found blocking policy violations — see the annotations above and the Step Summary for details."
+        exit 1
+
+    - name: Note non-blocking warnings
+      if: steps.run.outputs.exit_code == '1'
+      shell: bash
+      run: echo "::notice::CloudCostTree found only non-blocking (warn) policy violations — not failing the build. See the Step Summary for details."
