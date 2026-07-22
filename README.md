@@ -47,12 +47,20 @@ CloudCostTree is meant to be installed as the **VS Code extension** (see
 CLI binary directly — not by cloning this repository.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rulssss/cloudcosttree/main/install.sh | sh
+# macOS / Linux
+curl -fsSL https://cloudcosttree.com/install.sh | sh
 ```
 
-Installs the binary matching your OS/CPU to `/usr/local/bin` (macOS/Linux;
-on Windows, or to install by hand, grab a binary directly from
-[cloudcosttree releases](https://github.com/rulssss/cloudcosttree/releases)).
+```powershell
+# Windows (PowerShell)
+irm https://cloudcosttree.com/install.ps1 | iex
+```
+
+Installs the binary matching your OS/CPU into a folder you own (`~/.local/bin`
+on macOS/Linux, `%LOCALAPPDATA%\cloudcosttree\bin` on Windows) — no admin/
+sudo needed — and adds it to your `PATH` automatically if it isn't already
+there. To install by hand instead, grab a binary directly from
+[cloudcosttree releases](https://github.com/rulssss/cloudcosttree/releases).
 
 The CLI is fully self-contained: `data/prices.json` (the bundled price
 catalog) travels with it, so a plain `analyze`/`tree`/`diff` run needs no
