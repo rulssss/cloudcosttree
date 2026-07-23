@@ -4,7 +4,7 @@
     "currency": "USD",
     "pricing_model": "on-demand-linux",
     "updated": "2026-07-23",
-    "last_updated": "2026-07-23T15:25:08Z",
+    "last_updated": "2026-07-23T16:06:34Z",
     "source": "aws-price-list-api",
     "regions_included": [
       "af-south-1",
@@ -92,6 +92,7 @@
     "api_gateway": 0.004794520547945206,
     "cloudfront": 0.00011643835616438358,
     "cloudfront_distribution": 0.00011643835616438358,
+    "cloudhsm": 1.6,
     "cloudtrail": 0.0027397260273972603,
     "cloudwatch": 0.03,
     "cloudwatch_log_group": 0.0006849315068493151,
@@ -114,8 +115,10 @@
     "kinesis_stream": 0.015,
     "kms_key": 0.0013698630136986301,
     "lambda_function": 0.0019863047945205482,
+    "msk_cluster": 0.21,
     "nat_gateway": 0.045,
     "neptune_cluster_instance": 0.348,
+    "network_firewall": 0.395,
     "nlb": 0.0225,
     "opensearch_domain": 0.142,
     "rds": 0.016,
@@ -123,6 +126,7 @@
     "rds_proxy": 0.03,
     "redshift": 0.543,
     "route53_health_check": 0.0006849315068493151,
+    "route53_resolver_endpoint": 0.125,
     "route53_zone": 0.0006849315068493151,
     "s3_bucket": 0.0003150684931506849,
     "secretsmanager": 0.0005479452054794521,
@@ -133,7 +137,7 @@
     "vpc_endpoint": 0.01,
     "vpn_connection": 0.05,
     "vpn_gateway": 0.05,
-    "waf_web_acl": 0
+    "waf_web_acl": 0.00684931506849315
   },
   "regions": {
     "af-south-1": {
@@ -182,6 +186,7 @@
         "api_gateway": 0.005712328767123288,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.74,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.039,
         "cloudwatch_log_group": 0.0009287671232876712,
@@ -194,7 +199,6 @@
         "ecs_task_definition": 0.01665,
         "efs_file_system": 0.005342465753424658,
         "eip": 0.005,
-        "eks_cluster": 0.1,
         "elasticache": 0.034,
         "elasticache_cluster": 0.034,
         "elb": 0.0333,
@@ -204,8 +208,10 @@
         "kinesis_stream": 0.024,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0025445205479452055,
+        "msk_cluster": 0.278,
         "nat_gateway": 0.057,
         "neptune_cluster_instance": 0.617,
+        "network_firewall": 0.395,
         "nlb": 0.03,
         "opensearch_domain": 0.18802,
         "rds": 0.021,
@@ -213,6 +219,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.715,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0003753424657534247,
         "secretsmanager": 0.0005479452054794521,
@@ -223,7 +230,7 @@
         "vpc_endpoint": 0.01309,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.225,
@@ -326,11 +333,8 @@
         "t3.micro": 0.07072
       },
       "unavailable_resource_types": [
-        "msk_cluster",
         "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "eks_cluster"
       ]
     },
     "ap-east-1": {
@@ -379,6 +383,7 @@
         "api_gateway": 0.006404109589041095,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.17,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.036,
         "cloudwatch_log_group": 0.0010958904109589042,
@@ -401,8 +406,10 @@
         "kinesis_stream": 0.0202,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.002738356164383562,
+        "msk_cluster": 0.289,
         "nat_gateway": 0.065,
         "neptune_cluster_instance": 0.462,
+        "network_firewall": 1.025,
         "nlb": 0.0277,
         "opensearch_domain": 0.1947,
         "rds": 0.028,
@@ -410,6 +417,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.543,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -420,7 +428,7 @@
         "vpc_endpoint": 0.0143,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.2585,
@@ -507,6 +515,15 @@
         "sles": 1.424242424242424,
         "windows": 1.696969696969697
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "mq_broker_hourly": {
         "m5.2xlarge": 1.584,
         "m5.4xlarge": 3.168,
@@ -523,11 +540,7 @@
         "t3.micro": 0.03796
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ap-east-2": {
@@ -598,12 +611,14 @@
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0017876712328767123,
         "nat_gateway": 0.0558,
+        "network_firewall": 0.66,
         "nlb": 0.0219,
         "rds": 0.023,
         "rds_cluster": 0.023,
         "rds_proxy": 0.03,
         "redshift": 0.5751,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00030821917808219177,
         "secretsmanager": 0.0005479452054794521,
@@ -614,7 +629,7 @@
         "vpc_endpoint": 0.0126,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.205199,
@@ -701,9 +716,7 @@
         "docdb_cluster_instance",
         "neptune_cluster_instance",
         "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "cloudhsm"
       ]
     },
     "ap-northeast-1": {
@@ -752,6 +765,7 @@
         "api_gateway": 0.0058219178082191785,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.81,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0345,
         "cloudwatch_log_group": 0.0010410958904109589,
@@ -774,8 +788,10 @@
         "kinesis_stream": 0.0195,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.271,
         "nat_gateway": 0.062,
         "neptune_cluster_instance": 0.567,
+        "network_firewall": 0.395,
         "nlb": 0.0243,
         "opensearch_domain": 0.183,
         "rds": 0.025,
@@ -783,6 +799,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.639,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -883,6 +900,15 @@
         "sles": 1.4516129032258065,
         "windows": 1.7419354838709677
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r3.2xlarge": 1.289,
         "r3.4xlarge": 2.577,
@@ -934,11 +960,7 @@
         "t3.micro": 0.03536
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ap-northeast-2": {
@@ -987,6 +1009,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.54,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0339,
         "cloudwatch_log_group": 0.0010410958904109589,
@@ -999,6 +1022,7 @@
         "ecs_task_definition": 0.014195,
         "efs_file_system": 0.00452054794520548,
         "eip": 0.005,
+        "eks_cluster": 0.1,
         "elasticache": 0.02,
         "elasticache_cluster": 0.02,
         "elb": 0.025,
@@ -1008,8 +1032,10 @@
         "kinesis_stream": 0.0185,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.258,
         "nat_gateway": 0.059,
         "neptune_cluster_instance": 0.42,
+        "network_firewall": 0.158,
         "nlb": 0.0225,
         "opensearch_domain": 0.174,
         "rds": 0.025,
@@ -1017,6 +1043,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.639,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -1027,7 +1054,7 @@
         "vpc_endpoint": 0.013,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.236,
@@ -1117,6 +1144,15 @@
         "sles": 1.4745762711864407,
         "windows": 1.7796610169491525
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "mq_broker_hourly": {
         "m4.large": 0.37,
         "m5.2xlarge": 4.248,
@@ -1135,12 +1171,7 @@
         "t3.micro": 0.0676
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint",
-        "eks_cluster"
+        "global_accelerator"
       ]
     },
     "ap-northeast-3": {
@@ -1189,6 +1220,7 @@
         "api_gateway": 0.0058219178082191785,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.81,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0348,
         "cloudwatch_log_group": 0.0010410958904109589,
@@ -1211,8 +1243,10 @@
         "kinesis_stream": 0.0195,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.272,
         "nat_gateway": 0.062,
         "neptune_cluster_instance": 0.567,
+        "network_firewall": 1.095,
         "nlb": 0.0243,
         "opensearch_domain": 0.183,
         "rds": 0.025,
@@ -1220,6 +1254,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.64,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -1230,7 +1265,7 @@
         "vpc_endpoint": 0.014,
         "vpn_connection": 0.048,
         "vpn_gateway": 0.048,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.248,
@@ -1334,11 +1369,7 @@
         "t3.micro": 0.07072
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ap-south-1": {
@@ -1387,6 +1418,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.05,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0318,
         "cloudwatch_log_group": 0.0009178082191780823,
@@ -1409,8 +1441,10 @@
         "kinesis_stream": 0.0175,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.221,
         "nat_gateway": 0.056,
         "neptune_cluster_instance": 0.4,
+        "network_firewall": 0.395,
         "nlb": 0.0239,
         "opensearch_domain": 0.149,
         "rds": 0.021,
@@ -1418,6 +1452,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.618,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -1518,6 +1553,15 @@
         "sles": 1.5544554455445543,
         "windows": 1.9108910891089108
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r3.2xlarge": 1.162,
         "r3.4xlarge": 2.326,
@@ -1569,11 +1613,7 @@
         "t3.micro": 0.05824
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ap-south-2": {
@@ -1622,6 +1662,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.05,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0324,
         "cloudwatch_log_group": 0.0009178082191780823,
@@ -1644,8 +1685,10 @@
         "kinesis_stream": 0.0175,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.221,
         "nat_gateway": 0.056,
         "neptune_cluster_instance": 0.5159,
+        "network_firewall": 0.38,
         "nlb": 0.0239,
         "opensearch_domain": 0.149,
         "rds": 0.021,
@@ -1653,6 +1696,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.618,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -1663,7 +1707,7 @@
         "vpc_endpoint": 0.013,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.253,
@@ -1766,11 +1810,7 @@
         "t3.micro": 0.05824
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ap-southeast-1": {
@@ -1819,6 +1859,7 @@
         "api_gateway": 0.0058219178082191785,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.86,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0336,
         "cloudwatch_log_group": 0.0009589041095890411,
@@ -1841,8 +1882,10 @@
         "kinesis_stream": 0.0184,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.263,
         "nat_gateway": 0.059,
         "neptune_cluster_instance": 0.42,
+        "network_firewall": 0.872,
         "nlb": 0.0252,
         "opensearch_domain": 0.177,
         "rds": 0.025,
@@ -1850,6 +1893,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.652,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -1860,7 +1904,7 @@
         "vpc_endpoint": 0.013,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.235,
@@ -1950,6 +1994,15 @@
         "sles": 1.4666666666666666,
         "windows": 1.7666666666666666
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r3.2xlarge": 1.289,
         "r3.4xlarge": 2.577,
@@ -2001,11 +2054,7 @@
         "t3.micro": 0.06864
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ap-southeast-2": {
@@ -2054,6 +2103,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.99,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0342,
         "cloudwatch_log_group": 0.0009178082191780823,
@@ -2063,6 +2113,7 @@
         "docdb_cluster_instance": 0.3674,
         "dynamodb_table": 0.00444,
         "ecs_service": 0.0148,
+        "ecs_task_definition": 0.0148,
         "efs_file_system": 0.004931506849315068,
         "eip": 0.005,
         "eks_cluster": 0.1,
@@ -2075,8 +2126,10 @@
         "kinesis_stream": 0.0184,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.263,
         "nat_gateway": 0.059,
         "neptune_cluster_instance": 0.42,
+        "network_firewall": 0.395,
         "nlb": 0.0252,
         "opensearch_domain": 0.177,
         "rds": 0.025,
@@ -2084,6 +2137,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.652,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -2094,7 +2148,7 @@
         "vpc_endpoint": 0.013,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.235,
@@ -2184,6 +2238,15 @@
         "sles": 1.4666666666666666,
         "windows": 1.7666666666666666
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r3.2xlarge": 1.289,
         "r3.4xlarge": 2.577,
@@ -2235,12 +2298,7 @@
         "t3.micro": 0.03432
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint",
-        "ecs_task_definition"
+        "global_accelerator"
       ]
     },
     "ap-southeast-3": {
@@ -2289,6 +2347,7 @@
         "api_gateway": 0.0058219178082191785,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.49,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0351,
         "cloudwatch_log_group": 0.0009589041095890411,
@@ -2311,8 +2370,10 @@
         "kinesis_stream": 0.0184,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.263,
         "nat_gateway": 0.059,
         "neptune_cluster_instance": 0.421,
+        "network_firewall": 0.194,
         "nlb": 0.0252,
         "opensearch_domain": 0.177,
         "rds": 0.025,
@@ -2320,6 +2381,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.652,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -2417,6 +2479,15 @@
         "sles": 1.4666666666666666,
         "windows": 1.7666666666666666
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "mq_broker_hourly": {
         "m5.2xlarge": 1.44,
         "m5.4xlarge": 2.88,
@@ -2433,11 +2504,7 @@
         "t3.micro": 0.06864
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ap-southeast-4": {
@@ -2508,8 +2575,10 @@
         "kinesis_stream": 0.0184,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.263,
         "nat_gateway": 0.059,
         "neptune_cluster_instance": 0.42,
+        "network_firewall": 0.705,
         "nlb": 0.0252,
         "opensearch_domain": 0.177,
         "rds": 0.025,
@@ -2517,6 +2586,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.652,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -2615,11 +2685,8 @@
         "t3.micro": 0.06864
       },
       "unavailable_resource_types": [
-        "msk_cluster",
         "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "cloudhsm"
       ]
     },
     "ap-southeast-5": {
@@ -2690,12 +2757,14 @@
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0017876712328767123,
         "nat_gateway": 0.05015,
+        "network_firewall": 0.66,
         "nlb": 0.0227,
         "rds": 0.023,
         "rds_cluster": 0.023,
         "rds_proxy": 0.03,
         "redshift": 0.58635,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00030821917808219177,
         "secretsmanager": 0.0005479452054794521,
@@ -2706,7 +2775,7 @@
         "vpc_endpoint": 0.0117,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.198361,
@@ -2782,6 +2851,15 @@
         "sles": 1.0998,
         "windows": 1.3159
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "mq_broker_hourly": {
         "m5.2xlarge": 1.224,
         "m5.4xlarge": 4.896,
@@ -2803,9 +2881,7 @@
         "docdb_cluster_instance",
         "neptune_cluster_instance",
         "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "cloudhsm"
       ]
     },
     "ca-central-1": {
@@ -2854,6 +2930,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0321,
         "cloudwatch_log_group": 0.0007534246575342466,
@@ -2876,8 +2953,10 @@
         "kinesis_stream": 0.0165,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.234,
         "nat_gateway": 0.05,
         "neptune_cluster_instance": 0.518,
+        "network_firewall": 0.395,
         "nlb": 0.02475,
         "opensearch_domain": 0.158,
         "rds": 0.018,
@@ -2885,6 +2964,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.601,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -2985,6 +3065,15 @@
         "sles": 1.5233644859813085,
         "windows": 1.8598130841121496
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "mq_broker_hourly": {
         "m4.large": 0.66,
         "m5.2xlarge": 3.852,
@@ -3003,11 +3092,7 @@
         "t3.micro": 0.03016
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "ca-west-1": {
@@ -3078,8 +3163,10 @@
         "kinesis_stream": 0.0165,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.234,
         "nat_gateway": 0.05,
         "neptune_cluster_instance": 0.384,
+        "network_firewall": 0.705,
         "nlb": 0.02475,
         "opensearch_domain": 0.158,
         "rds": 0.02,
@@ -3087,6 +3174,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.601,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -3183,11 +3271,8 @@
         "t3.micro": 0.06032
       },
       "unavailable_resource_types": [
-        "msk_cluster",
         "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "cloudhsm"
       ]
     },
     "eu-central-1": {
@@ -3236,6 +3321,7 @@
         "api_gateway": 0.005068493150684932,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.92,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0327,
         "cloudwatch_log_group": 0.000863013698630137,
@@ -3244,6 +3330,7 @@
         "directory_service": 0.067,
         "docdb_cluster_instance": 0.3674,
         "dynamodb_table": 0.004758,
+        "ecs_service": 0.014195,
         "ecs_task_definition": 0.014195,
         "efs_file_system": 0.004931506849315068,
         "eip": 0.005,
@@ -3257,8 +3344,10 @@
         "kinesis_stream": 0.018,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.252,
         "nat_gateway": 0.052,
         "neptune_cluster_instance": 0.42,
+        "network_firewall": 0.926,
         "nlb": 0.027,
         "opensearch_domain": 0.17,
         "rds": 0.019,
@@ -3266,6 +3355,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.649,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00033561643835616436,
         "secretsmanager": 0.0005479452054794521,
@@ -3276,7 +3366,7 @@
         "vpc_endpoint": 0.012,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.203,
@@ -3366,6 +3456,15 @@
         "sles": 1.4869565217391305,
         "windows": 1.7999999999999998
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r4.16xlarge": 10.337,
         "r4.2xlarge": 1.292,
@@ -3412,12 +3511,7 @@
         "t3.micro": 0.0624
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint",
-        "ecs_service"
+        "global_accelerator"
       ]
     },
     "eu-central-2": {
@@ -3466,6 +3560,7 @@
         "api_gateway": 0.005575342465753425,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.56,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0345,
         "cloudwatch_log_group": 0.0009452054794520547,
@@ -3488,8 +3583,10 @@
         "kinesis_stream": 0.0198,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0021849383561643836,
+        "msk_cluster": 0.278,
         "nat_gateway": 0.0572,
         "neptune_cluster_instance": 0.6143,
+        "network_firewall": 0.43,
         "nlb": 0.0297,
         "opensearch_domain": 0.187,
         "rds": 0.021,
@@ -3497,6 +3594,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.714,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00036917808219178084,
         "secretsmanager": 0.0005479452054794521,
@@ -3610,11 +3708,7 @@
         "t3.micro": 0.06864
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "eu-north-1": {
@@ -3663,6 +3757,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.4,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0306,
         "cloudwatch_log_group": 0.0007397260273972604,
@@ -3672,6 +3767,7 @@
         "docdb_cluster_instance": 0.2907,
         "dynamodb_table": 0.00419,
         "ecs_service": 0.013575,
+        "ecs_task_definition": 0.013575,
         "efs_file_system": 0.00410958904109589,
         "eip": 0.005,
         "eks_cluster": 0.1,
@@ -3684,8 +3780,10 @@
         "kinesis_stream": 0.0162,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.223,
         "nat_gateway": 0.046,
         "neptune_cluster_instance": 0.42,
+        "network_firewall": 0.511,
         "nlb": 0.02394,
         "opensearch_domain": 0.15,
         "rds": 0.016,
@@ -3693,6 +3791,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.57,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0003150684931506849,
         "secretsmanager": 0.0005479452054794521,
@@ -3703,7 +3802,7 @@
         "vpc_endpoint": 0.0105,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.18,
@@ -3790,6 +3889,15 @@
         "sles": 1.5490196078431373,
         "windows": 1.9019607843137256
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r5.12xlarge": 6.47425,
         "r5.16xlarge": 8.61365,
@@ -3826,12 +3934,7 @@
         "t3.micro": 0.02808
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint",
-        "ecs_task_definition"
+        "global_accelerator"
       ]
     },
     "eu-south-1": {
@@ -3880,6 +3983,7 @@
         "api_gateway": 0.005041095890410958,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.62,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.033,
         "cloudwatch_log_group": 0.000821917808219178,
@@ -3902,7 +4006,9 @@
         "kinesis_stream": 0.02655,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0023202602739726026,
+        "msk_cluster": 0.245,
         "nat_gateway": 0.05,
+        "network_firewall": 0.158,
         "nlb": 0.0265,
         "opensearch_domain": 0.1659,
         "rds": 0.018,
@@ -3910,6 +4016,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.63,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00032876712328767124,
         "secretsmanager": 0.0005479452054794521,
@@ -4017,12 +4124,8 @@
         "t3.micro": 0.0312
       },
       "unavailable_resource_types": [
-        "msk_cluster",
         "neptune_cluster_instance",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "eu-south-2": {
@@ -4093,8 +4196,10 @@
         "kinesis_stream": 0.017,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.234,
         "nat_gateway": 0.048,
         "neptune_cluster_instance": 0.5159,
+        "network_firewall": 0.158,
         "nlb": 0.0252,
         "opensearch_domain": 0.158,
         "rds": 0.018,
@@ -4102,6 +4207,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.601,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0003150684931506849,
         "secretsmanager": 0.0005479452054794521,
@@ -4199,6 +4305,15 @@
         "sles": 1.5233644859813085,
         "windows": 1.8598130841121496
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r5.12xlarge": 6.815,
         "r5.16xlarge": 9.067,
@@ -4235,11 +4350,8 @@
         "t3.micro": 0.02964
       },
       "unavailable_resource_types": [
-        "msk_cluster",
         "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "cloudhsm"
       ]
     },
     "eu-west-1": {
@@ -4288,6 +4400,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.47,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0315,
         "cloudwatch_log_group": 0.0007808219178082191,
@@ -4310,8 +4423,10 @@
         "kinesis_stream": 0.017,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.234,
         "nat_gateway": 0.048,
         "neptune_cluster_instance": 0.384,
+        "network_firewall": 0.158,
         "nlb": 0.0252,
         "opensearch_domain": 0.158,
         "rds": 0.017,
@@ -4319,6 +4434,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.601,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0003150684931506849,
         "secretsmanager": 0.0005479452054794521,
@@ -4329,7 +4445,7 @@
         "vpc_endpoint": 0.011,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.189,
@@ -4419,6 +4535,15 @@
         "sles": 1.5233644859813085,
         "windows": 1.8598130841121496
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r3.2xlarge": 1.197,
         "r3.4xlarge": 2.393,
@@ -4470,11 +4595,7 @@
         "t3.micro": 0.02964
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "eu-west-2": {
@@ -4523,6 +4644,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.59,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0324,
         "cloudwatch_log_group": 0.0008198630136986302,
@@ -4535,6 +4657,7 @@
         "ecs_task_definition": 0.014195,
         "efs_file_system": 0.00452054794520548,
         "eip": 0.005,
+        "eks_cluster": 0.1,
         "elasticache": 0.015,
         "elasticache_cluster": 0.015,
         "elb": 0.0294,
@@ -4544,8 +4667,10 @@
         "kinesis_stream": 0.0179,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.243,
         "nat_gateway": 0.05,
         "neptune_cluster_instance": 0.408,
+        "network_firewall": 1.127,
         "nlb": 0.02646,
         "opensearch_domain": 0.164,
         "rds": 0.018,
@@ -4553,6 +4678,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.632,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00032876712328767124,
         "secretsmanager": 0.0005479452054794521,
@@ -4653,6 +4779,15 @@
         "sles": 1.5045045045045047,
         "windows": 1.828828828828829
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r4.16xlarge": 10.0544288,
         "r4.2xlarge": 1.2573288,
@@ -4699,12 +4834,7 @@
         "t3.micro": 0.03068
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint",
-        "eks_cluster"
+        "global_accelerator"
       ]
     },
     "eu-west-3": {
@@ -4753,6 +4883,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.18,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0327,
         "cloudwatch_log_group": 0.0008198630136986302,
@@ -4775,8 +4906,10 @@
         "kinesis_stream": 0.0179,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.245,
         "nat_gateway": 0.05,
         "neptune_cluster_instance": 0.542,
+        "network_firewall": 0.395,
         "nlb": 0.02646,
         "opensearch_domain": 0.165,
         "rds": 0.018,
@@ -4784,6 +4917,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.633,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00032876712328767124,
         "secretsmanager": 0.0005479452054794521,
@@ -4794,7 +4928,7 @@
         "vpc_endpoint": 0.011,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.198,
@@ -4884,6 +5018,15 @@
         "sles": 1.5,
         "windows": 1.8214285714285712
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r4.16xlarge": 10.0544288,
         "r4.2xlarge": 1.2573288,
@@ -4929,11 +5072,7 @@
         "t3.micro": 0.03068
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "me-central-1": {
@@ -4982,6 +5121,7 @@
         "api_gateway": 0.005273972602739727,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.51,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0363,
         "cloudwatch_log_group": 0.000863013698630137,
@@ -5004,8 +5144,10 @@
         "kinesis_stream": 0.0187,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0024657568493150683,
+        "msk_cluster": 0.258,
         "nat_gateway": 0.0528,
         "neptune_cluster_instance": 0.4224,
+        "network_firewall": 0.36,
         "nlb": 0.028224,
         "opensearch_domain": 0.1738,
         "rds": 0.019,
@@ -5013,6 +5155,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.661,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -5126,11 +5269,7 @@
         "t3.micro": 0.065
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "me-central-2": {
@@ -5317,6 +5456,7 @@
         "api_gateway": 0.005273972602739727,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.66,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0366,
         "cloudwatch_log_group": 0.000863013698630137,
@@ -5338,8 +5478,10 @@
         "kinesis_stream": 0.0187,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0024657568493150683,
+        "msk_cluster": 0.258,
         "nat_gateway": 0.0528,
         "neptune_cluster_instance": 0.569,
+        "network_firewall": 0.158,
         "nlb": 0.02772,
         "opensearch_domain": 0.174,
         "rds": 0.019,
@@ -5347,6 +5489,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.66,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00034246575342465754,
         "secretsmanager": 0.0005479452054794521,
@@ -5357,7 +5500,7 @@
         "vpc_endpoint": 0.0121,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.208,
@@ -5460,12 +5603,8 @@
         "t3.micro": 0.065
       },
       "unavailable_resource_types": [
-        "msk_cluster",
         "docdb_cluster_instance",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "mx-central-1": {
@@ -5536,12 +5675,14 @@
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.002085616438356164,
         "nat_gateway": 0.04725,
+        "network_firewall": 0.585,
         "nlb": 0.023625,
         "rds": 0.017,
         "rds_cluster": 0.017,
         "rds_proxy": 0.03,
         "redshift": 0.57015,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0003308219178082192,
         "secretsmanager": 0.0005479452054794521,
@@ -5552,7 +5693,7 @@
         "vpc_endpoint": 0.0105,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.188101,
@@ -5650,9 +5791,7 @@
         "docdb_cluster_instance",
         "neptune_cluster_instance",
         "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "cloudhsm"
       ]
     },
     "sa-east-1": {
@@ -5701,6 +5840,7 @@
         "api_gateway": 0.0058219178082191785,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 2.72,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.042,
         "cloudwatch_log_group": 0.001232876712328767,
@@ -5723,8 +5863,10 @@
         "kinesis_stream": 0.03,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.335,
         "nat_gateway": 0.093,
         "neptune_cluster_instance": 0.72,
+        "network_firewall": 0.395,
         "nlb": 0.034,
         "opensearch_domain": 0.226,
         "rds": 0.034,
@@ -5732,6 +5874,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.866,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0005547945205479452,
         "secretsmanager": 0.0005479452054794521,
@@ -5742,7 +5885,7 @@
         "vpc_endpoint": 0.021,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.231,
@@ -5832,6 +5975,15 @@
         "sles": 1.3660130718954249,
         "windows": 1.6013071895424837
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r4.16xlarge": 17.171,
         "r4.2xlarge": 2.146,
@@ -5878,11 +6030,7 @@
         "t3.micro": 0.04368
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "us-east-1": {
@@ -5931,6 +6079,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.6,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.03,
         "cloudwatch_log_group": 0.0006849315068493151,
@@ -5953,8 +6102,10 @@
         "kinesis_stream": 0.015,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.21,
         "nat_gateway": 0.045,
         "neptune_cluster_instance": 0.348,
+        "network_firewall": 0.395,
         "nlb": 0.0225,
         "opensearch_domain": 0.142,
         "rds": 0.016,
@@ -5962,240 +6113,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.543,
         "route53_health_check": 0.0006849315068493151,
-        "route53_zone": 0.0006849315068493151,
-        "s3_bucket": 0.0003150684931506849,
-        "secretsmanager": 0.0005479452054794521,
-        "securityhub": 0.0013698630136986301,
-        "sns": 0.0006849315068493151,
-        "sqs": 0.000547945205479452,
-        "transit_gateway": 0.05,
-        "vpc_endpoint": 0.01,
-        "vpn_connection": 0.05,
-        "vpn_gateway": 0.05,
-        "waf_web_acl": 0
-      },
-      "rds_instance_hourly": {
-        "db.m5.large": 0.171,
-        "db.m5.xlarge": 0.342,
-        "db.m6g.large": 0.152,
-        "db.m6g.xlarge": 0.312,
-        "db.r5.large": 0.24,
-        "db.r5.xlarge": 0.48,
-        "db.r6g.large": 0.215,
-        "db.t3.large": 0.136,
-        "db.t3.medium": 0.068,
-        "db.t3.micro": 0.017,
-        "db.t3.small": 0.034,
-        "db.t4g.large": 0.129,
-        "db.t4g.medium": 0.065,
-        "db.t4g.micro": 0.016,
-        "db.t4g.small": 0.032
-      },
-      "ec2_reserved_1yr_no_upfront_hourly": {
-        "c5.large": 0.054,
-        "c5.xlarge": 0.107,
-        "c6g.large": 0.0428,
-        "m5.large": 0.06,
-        "m5.xlarge": 0.121,
-        "m6g.large": 0.0483,
-        "r5.large": 0.079,
-        "r5.xlarge": 0.159,
-        "r6g.large": 0.0635,
-        "t2.micro": 0.0072,
-        "t3.large": 0.0522,
-        "t3.medium": 0.0261,
-        "t3.micro": 0.0065,
-        "t3.small": 0.013,
-        "t3a.medium": 0.0236,
-        "t3a.small": 0.0118,
-        "t4g.medium": 0.0211,
-        "t4g.small": 0.0105
-      },
-      "rds_reserved_1yr_no_upfront_hourly": {
-        "db.m5.large": 0.1095,
-        "db.m5.xlarge": 0.2191,
-        "db.m6g.large": 0.0973,
-        "db.r5.large": 0.1386,
-        "db.r5.xlarge": 0.2772,
-        "db.r6g.large": 0.124,
-        "db.t3.large": 0.0957,
-        "db.t3.medium": 0.0478,
-        "db.t3.micro": 0.012,
-        "db.t3.small": 0.0239,
-        "db.t4g.medium": 0.0465,
-        "db.t4g.micro": 0.0116,
-        "db.t4g.small": 0.0233
-      },
-      "usage_based_per_unit_rates": {
-        "api_gateway": 0.0000035,
-        "cloudfront": 0.085,
-        "cloudfront_distribution": 0.085,
-        "cloudtrail": 0.00002,
-        "config": 0.003,
-        "guardduty": 0.000004,
-        "kinesis_firehose": 0.029,
-        "lambda_function": 2e-7,
-        "securityhub": 0.001,
-        "sns": 5e-7,
-        "sqs": 4e-7
-      },
-      "lambda_per_gb_second_usd": 0.0000166667,
-      "iops_price_per_unit_monthly": 0.065,
-      "throughput_price_per_mbps_monthly": 0.04,
-      "snapshot_size_price_per_gb_monthly": 0.05,
-      "data_out_price_per_gb": 0.09,
-      "data_in_price_per_gb": 0,
-      "nat_data_price_per_gb": 0.045,
-      "elastic_ips_price_monthly": 3.65,
-      "multi_az_multiplier": 2,
-      "rds_backup_retention_price_per_gb_day": 0.000794,
-      "retention_price_per_day_monthly": 0.01,
-      "dynamo_rcu_price_per_unit_monthly": 0.0949,
-      "dynamo_wcu_price_per_unit_monthly": 0.4745,
-      "dynamo_table_class_multiplier": {
-        "standard": 1,
-        "standard-infrequent-access": 0.6
-      },
-      "os_hourly_multiplier": {
-        "linux": 1,
-        "rhel": 1.3020833333333333,
-        "sles": 1.5833333333333333,
-        "windows": 1.9583333333333333
-      },
-      "dax_node_hourly": {
-        "r3.2xlarge": 1.074,
-        "r3.4xlarge": 2.148,
-        "r3.8xlarge": 4.295,
-        "r3.large": 0.269,
-        "r3.xlarge": 0.537,
-        "r4.16xlarge": 8.59,
-        "r4.2xlarge": 1.074,
-        "r4.4xlarge": 2.148,
-        "r4.8xlarge": 4.295,
-        "r4.large": 0.269,
-        "r4.xlarge": 0.537,
-        "r5.12xlarge": 6.117,
-        "r5.16xlarge": 8.137,
-        "r5.24xlarge": 12.234,
-        "r5.2xlarge": 1.017,
-        "r5.4xlarge": 2.034,
-        "r5.8xlarge": 4.069,
-        "r5.large": 0.255,
-        "r5.xlarge": 0.509,
-        "r7i.12xlarge": 6.117,
-        "r7i.16xlarge": 8.137,
-        "r7i.24xlarge": 12.234,
-        "r7i.2xlarge": 1.017,
-        "r7i.4xlarge": 2.034,
-        "r7i.8xlarge": 4.069,
-        "r7i.large": 0.255,
-        "r7i.xlarge": 0.509,
-        "t2.medium": 0.08,
-        "t2.small": 0.04,
-        "t3.medium": 0.08,
-        "t3.small": 0.04
-      },
-      "mq_broker_hourly": {
-        "m4.large": 0.6,
-        "m5.2xlarge": 1.152,
-        "m5.4xlarge": 6.912,
-        "m5.large": 0.1,
-        "m5.xlarge": 0.576,
-        "m7g.12xlarge": 6.5606,
-        "m7g.16xlarge": 26.2426,
-        "m7g.2xlarge": 3.2803,
-        "m7g.4xlarge": 2.1869,
-        "m7g.8xlarge": 13.1213,
-        "m7g.large": 0.8201,
-        "m7g.medium": 0.1367,
-        "m7g.xlarge": 1.6402,
-        "t2.micro": 0.03,
-        "t3.micro": 0.02704
-      },
-      "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
-      ]
-    },
-    "us-east-2": {
-      "ec2_hourly": {
-        "c5.large": 0.085,
-        "c5.xlarge": 0.17,
-        "c6g.large": 0.068,
-        "m5.large": 0.096,
-        "m5.xlarge": 0.192,
-        "m6g.large": 0.077,
-        "r5.large": 0.126,
-        "r5.xlarge": 0.252,
-        "r6g.large": 0.1008,
-        "t2.micro": 0.0116,
-        "t3.large": 0.0832,
-        "t3.medium": 0.0416,
-        "t3.micro": 0.0104,
-        "t3.small": 0.0208,
-        "t3a.medium": 0.0376,
-        "t3a.small": 0.0188,
-        "t4g.medium": 0.0336,
-        "t4g.small": 0.0168
-      },
-      "ebs_monthly_per_gb": {
-        "gp2": 0.1,
-        "gp3": 0.08,
-        "io1": 0.125,
-        "io2": 0.125,
-        "sc1": 0.015,
-        "st1": 0.045
-      },
-      "s3_monthly_per_gb": {
-        "deep_archive": 0.00099,
-        "glacier": 0.0036,
-        "intelligent_tiering": 0.023,
-        "one_zone_ia": 0.01,
-        "standard": 0.023,
-        "standard_ia": 0.0125
-      },
-      "efs_monthly_per_gb": {
-        "infrequent_access": 0.025,
-        "standard": 0.3
-      },
-      "resource_hourly": {
-        "alb": 0.0225,
-        "api_gateway": 0.004794520547945206,
-        "cloudfront": 0.00011643835616438358,
-        "cloudfront_distribution": 0.00011643835616438358,
-        "cloudtrail": 0.0027397260273972603,
-        "cloudwatch": 0.03,
-        "cloudwatch_log_group": 0.0006849315068493151,
-        "cloudwatch_metric_alarm": 1.3698630136986301e-11,
-        "config": 0.000410958904109589,
-        "directory_service": 0.06,
-        "docdb_cluster_instance": 0.277,
-        "dynamodb_table": 0.0039,
-        "ecs_service": 0.012342500000000001,
-        "ecs_task_definition": 0.012342500000000001,
-        "efs_file_system": 0.00410958904109589,
-        "eip": 0.005,
-        "elasticache": 0.014,
-        "elasticache_cluster": 0.014,
-        "elb": 0.025,
-        "guardduty": 0.000547945205479452,
-        "gwlb": 0.0125,
-        "kinesis_firehose": 0.000039726027397260274,
-        "kinesis_stream": 0.015,
-        "kms_key": 0.0013698630136986301,
-        "lambda_function": 0.0019863047945205482,
-        "nat_gateway": 0.045,
-        "neptune_cluster_instance": 0.469,
-        "nlb": 0.0225,
-        "opensearch_domain": 0.142,
-        "rds": 0.016,
-        "rds_cluster": 0.016,
-        "rds_proxy": 0.03,
-        "redshift": 0.543,
-        "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0003150684931506849,
         "secretsmanager": 0.0005479452054794521,
@@ -6296,6 +6214,259 @@
         "sles": 1.5833333333333333,
         "windows": 1.9583333333333333
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
+      "dax_node_hourly": {
+        "r3.2xlarge": 1.074,
+        "r3.4xlarge": 2.148,
+        "r3.8xlarge": 4.295,
+        "r3.large": 0.269,
+        "r3.xlarge": 0.537,
+        "r4.16xlarge": 8.59,
+        "r4.2xlarge": 1.074,
+        "r4.4xlarge": 2.148,
+        "r4.8xlarge": 4.295,
+        "r4.large": 0.269,
+        "r4.xlarge": 0.537,
+        "r5.12xlarge": 6.117,
+        "r5.16xlarge": 8.137,
+        "r5.24xlarge": 12.234,
+        "r5.2xlarge": 1.017,
+        "r5.4xlarge": 2.034,
+        "r5.8xlarge": 4.069,
+        "r5.large": 0.255,
+        "r5.xlarge": 0.509,
+        "r7i.12xlarge": 6.117,
+        "r7i.16xlarge": 8.137,
+        "r7i.24xlarge": 12.234,
+        "r7i.2xlarge": 1.017,
+        "r7i.4xlarge": 2.034,
+        "r7i.8xlarge": 4.069,
+        "r7i.large": 0.255,
+        "r7i.xlarge": 0.509,
+        "t2.medium": 0.08,
+        "t2.small": 0.04,
+        "t3.medium": 0.08,
+        "t3.small": 0.04
+      },
+      "mq_broker_hourly": {
+        "m4.large": 0.6,
+        "m5.2xlarge": 1.152,
+        "m5.4xlarge": 6.912,
+        "m5.large": 0.1,
+        "m5.xlarge": 0.576,
+        "m7g.12xlarge": 6.5606,
+        "m7g.16xlarge": 26.2426,
+        "m7g.2xlarge": 3.2803,
+        "m7g.4xlarge": 2.1869,
+        "m7g.8xlarge": 13.1213,
+        "m7g.large": 0.8201,
+        "m7g.medium": 0.1367,
+        "m7g.xlarge": 1.6402,
+        "t2.micro": 0.03,
+        "t3.micro": 0.02704
+      },
+      "unavailable_resource_types": [
+        "global_accelerator"
+      ]
+    },
+    "us-east-2": {
+      "ec2_hourly": {
+        "c5.large": 0.085,
+        "c5.xlarge": 0.17,
+        "c6g.large": 0.068,
+        "m5.large": 0.096,
+        "m5.xlarge": 0.192,
+        "m6g.large": 0.077,
+        "r5.large": 0.126,
+        "r5.xlarge": 0.252,
+        "r6g.large": 0.1008,
+        "t2.micro": 0.0116,
+        "t3.large": 0.0832,
+        "t3.medium": 0.0416,
+        "t3.micro": 0.0104,
+        "t3.small": 0.0208,
+        "t3a.medium": 0.0376,
+        "t3a.small": 0.0188,
+        "t4g.medium": 0.0336,
+        "t4g.small": 0.0168
+      },
+      "ebs_monthly_per_gb": {
+        "gp2": 0.1,
+        "gp3": 0.08,
+        "io1": 0.125,
+        "io2": 0.125,
+        "sc1": 0.015,
+        "st1": 0.045
+      },
+      "s3_monthly_per_gb": {
+        "deep_archive": 0.00099,
+        "glacier": 0.0036,
+        "intelligent_tiering": 0.023,
+        "one_zone_ia": 0.01,
+        "standard": 0.023,
+        "standard_ia": 0.0125
+      },
+      "efs_monthly_per_gb": {
+        "infrequent_access": 0.025,
+        "standard": 0.3
+      },
+      "resource_hourly": {
+        "alb": 0.0225,
+        "api_gateway": 0.004794520547945206,
+        "cloudfront": 0.00011643835616438358,
+        "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.45,
+        "cloudtrail": 0.0027397260273972603,
+        "cloudwatch": 0.03,
+        "cloudwatch_log_group": 0.0006849315068493151,
+        "cloudwatch_metric_alarm": 1.3698630136986301e-11,
+        "config": 0.000410958904109589,
+        "directory_service": 0.06,
+        "docdb_cluster_instance": 0.277,
+        "dynamodb_table": 0.0039,
+        "ecs_service": 0.012342500000000001,
+        "ecs_task_definition": 0.012342500000000001,
+        "efs_file_system": 0.00410958904109589,
+        "eip": 0.005,
+        "eks_cluster": 0.1,
+        "elasticache": 0.014,
+        "elasticache_cluster": 0.014,
+        "elb": 0.025,
+        "guardduty": 0.000547945205479452,
+        "gwlb": 0.0125,
+        "kinesis_firehose": 0.000039726027397260274,
+        "kinesis_stream": 0.015,
+        "kms_key": 0.0013698630136986301,
+        "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.21,
+        "nat_gateway": 0.045,
+        "neptune_cluster_instance": 0.469,
+        "network_firewall": 0.38,
+        "nlb": 0.0225,
+        "opensearch_domain": 0.142,
+        "rds": 0.016,
+        "rds_cluster": 0.016,
+        "rds_proxy": 0.03,
+        "redshift": 0.543,
+        "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
+        "route53_zone": 0.0006849315068493151,
+        "s3_bucket": 0.0003150684931506849,
+        "secretsmanager": 0.0005479452054794521,
+        "securityhub": 0.0013698630136986301,
+        "sns": 0.0006849315068493151,
+        "sqs": 0.000547945205479452,
+        "transit_gateway": 0.05,
+        "vpc_endpoint": 0.01,
+        "vpn_connection": 0.05,
+        "vpn_gateway": 0.05,
+        "waf_web_acl": 0.00684931506849315
+      },
+      "rds_instance_hourly": {
+        "db.m5.large": 0.171,
+        "db.m5.xlarge": 0.342,
+        "db.m6g.large": 0.152,
+        "db.m6g.xlarge": 0.312,
+        "db.r5.large": 0.24,
+        "db.r5.xlarge": 0.48,
+        "db.r6g.large": 0.215,
+        "db.t3.large": 0.136,
+        "db.t3.medium": 0.068,
+        "db.t3.micro": 0.017,
+        "db.t3.small": 0.034,
+        "db.t4g.large": 0.129,
+        "db.t4g.medium": 0.065,
+        "db.t4g.micro": 0.016,
+        "db.t4g.small": 0.032
+      },
+      "ec2_reserved_1yr_no_upfront_hourly": {
+        "c5.large": 0.054,
+        "c5.xlarge": 0.107,
+        "c6g.large": 0.0428,
+        "m5.large": 0.06,
+        "m5.xlarge": 0.121,
+        "m6g.large": 0.0483,
+        "r5.large": 0.079,
+        "r5.xlarge": 0.159,
+        "r6g.large": 0.0635,
+        "t2.micro": 0.0072,
+        "t3.large": 0.0522,
+        "t3.medium": 0.0261,
+        "t3.micro": 0.0065,
+        "t3.small": 0.013,
+        "t3a.medium": 0.0236,
+        "t3a.small": 0.0118,
+        "t4g.medium": 0.0211,
+        "t4g.small": 0.0105
+      },
+      "rds_reserved_1yr_no_upfront_hourly": {
+        "db.m5.large": 0.1095,
+        "db.m5.xlarge": 0.2191,
+        "db.m6g.large": 0.0973,
+        "db.r5.large": 0.1386,
+        "db.r5.xlarge": 0.2772,
+        "db.r6g.large": 0.124,
+        "db.t3.large": 0.0957,
+        "db.t3.medium": 0.0478,
+        "db.t3.micro": 0.012,
+        "db.t3.small": 0.0239,
+        "db.t4g.medium": 0.0465,
+        "db.t4g.micro": 0.0116,
+        "db.t4g.small": 0.0233
+      },
+      "usage_based_per_unit_rates": {
+        "api_gateway": 0.0000035,
+        "cloudfront": 0.085,
+        "cloudfront_distribution": 0.085,
+        "cloudtrail": 0.00002,
+        "config": 0.003,
+        "guardduty": 0.000004,
+        "kinesis_firehose": 0.029,
+        "lambda_function": 2e-7,
+        "securityhub": 0.001,
+        "sns": 5e-7,
+        "sqs": 4e-7
+      },
+      "lambda_per_gb_second_usd": 0.0000166667,
+      "iops_price_per_unit_monthly": 0.065,
+      "throughput_price_per_mbps_monthly": 0.04,
+      "snapshot_size_price_per_gb_monthly": 0.05,
+      "data_out_price_per_gb": 0.09,
+      "data_in_price_per_gb": 0,
+      "nat_data_price_per_gb": 0.045,
+      "elastic_ips_price_monthly": 3.65,
+      "multi_az_multiplier": 2,
+      "rds_backup_retention_price_per_gb_day": 0.000794,
+      "retention_price_per_day_monthly": 0.01,
+      "dynamo_rcu_price_per_unit_monthly": 0.0949,
+      "dynamo_wcu_price_per_unit_monthly": 0.4745,
+      "dynamo_table_class_multiplier": {
+        "standard": 1,
+        "standard-infrequent-access": 0.6
+      },
+      "os_hourly_multiplier": {
+        "linux": 1,
+        "rhel": 1.3020833333333333,
+        "sles": 1.5833333333333333,
+        "windows": 1.9583333333333333
+      },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r4.16xlarge": 8.59,
         "r4.2xlarge": 1.074,
@@ -6342,12 +6513,7 @@
         "t3.micro": 0.05408
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint",
-        "eks_cluster"
+        "global_accelerator"
       ]
     },
     "us-west-1": {
@@ -6396,6 +6562,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.81,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.0324,
         "cloudwatch_log_group": 0.0009178082191780823,
@@ -6417,8 +6584,10 @@
         "kinesis_stream": 0.0182,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.245,
         "nat_gateway": 0.048,
         "neptune_cluster_instance": 0.384,
+        "network_firewall": 0.158,
         "nlb": 0.0252,
         "opensearch_domain": 0.165,
         "rds": 0.021,
@@ -6426,6 +6595,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.601,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.00035616438356164383,
         "secretsmanager": 0.0005479452054794521,
@@ -6436,7 +6606,7 @@
         "vpc_endpoint": 0.011,
         "vpn_connection": 0.05,
         "vpn_gateway": 0.05,
-        "waf_web_acl": 0
+        "waf_web_acl": 0.00684931506849315
       },
       "rds_instance_hourly": {
         "db.m5.large": 0.195,
@@ -6577,12 +6747,8 @@
         "t3.micro": 0.06448
       },
       "unavailable_resource_types": [
-        "msk_cluster",
         "docdb_cluster_instance",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint"
+        "global_accelerator"
       ]
     },
     "us-west-2": {
@@ -6631,6 +6797,7 @@
         "api_gateway": 0.004794520547945206,
         "cloudfront": 0.00011643835616438358,
         "cloudfront_distribution": 0.00011643835616438358,
+        "cloudhsm": 1.45,
         "cloudtrail": 0.0027397260273972603,
         "cloudwatch": 0.03,
         "cloudwatch_log_group": 0.0006849315068493151,
@@ -6643,6 +6810,7 @@
         "ecs_task_definition": 0.012342500000000001,
         "efs_file_system": 0.00410958904109589,
         "eip": 0.005,
+        "eks_cluster": 0.1,
         "elasticache": 0.017,
         "elasticache_cluster": 0.017,
         "elb": 0.025,
@@ -6652,8 +6820,10 @@
         "kinesis_stream": 0.015,
         "kms_key": 0.0013698630136986301,
         "lambda_function": 0.0019863047945205482,
+        "msk_cluster": 0.21,
         "nat_gateway": 0.045,
         "neptune_cluster_instance": 0.469,
+        "network_firewall": 0.38,
         "nlb": 0.0225,
         "opensearch_domain": 0.142,
         "rds": 0.016,
@@ -6661,6 +6831,7 @@
         "rds_proxy": 0.03,
         "redshift": 0.543,
         "route53_health_check": 0.0006849315068493151,
+        "route53_resolver_endpoint": 0.125,
         "route53_zone": 0.0006849315068493151,
         "s3_bucket": 0.0003150684931506849,
         "secretsmanager": 0.0005479452054794521,
@@ -6761,6 +6932,15 @@
         "sles": 1.5833333333333333,
         "windows": 1.9583333333333333
       },
+      "lightsail_bundle_monthly": {
+        "2xlarge": 0.22043,
+        "large": 0.05913,
+        "medium": 0.03225,
+        "micro": 0.0094,
+        "nano": 0.00672,
+        "small": 0.01612,
+        "xlarge": 0.1129
+      },
       "dax_node_hourly": {
         "r3.2xlarge": 1.074,
         "r3.4xlarge": 2.148,
@@ -6812,12 +6992,7 @@
         "t3.micro": 0.02704
       },
       "unavailable_resource_types": [
-        "msk_cluster",
-        "global_accelerator",
-        "network_firewall",
-        "cloudhsm",
-        "route53_resolver_endpoint",
-        "eks_cluster"
+        "global_accelerator"
       ]
     }
   }
