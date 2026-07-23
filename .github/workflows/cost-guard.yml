@@ -1,0 +1,62 @@
+# Cost Guard - policy enforcement that actually fails the build.
+#
+# Ready to copy into your own repo as-is — only INFRA_PATH/POLICIES_PATH
+# below need to point at your infrastructure/policies.yaml. This calls the
+# public rulssss/cloudcosttree action (this same repo), which downloads a
+# prebuilt binary; it never exposes or depends on CloudCostTree's private
+# source.
+#
+# Runs the action in "check" mode against the PR's infrastructure and gates
+# the merge on it, using the same 0/1/2 exit-code convention as the rest of
+# the `ci` command group:
+#   0  clean                              -> job passes
+#   1  only non-blocking ("warn") issues  -> job passes, but shows up as a
+#                                            warning annotation + in the
+#                                            Step Summary, so it isn't silent
+#   2  a blocking ("error"/"deny") issue  -> job fails
+#
+# GitHub Actions annotations (the little warning/error markers GitHub draws
+# inline on changed files in the PR) are printed automatically — no extra
+# step needed, `cloudcosttree` detects GITHUB_ACTIONS=true on its own.
+#
+# Requires a policies.yaml (see `cloudcosttree policy init`) somewhere this
+# job can see it — either committed at the repo root (auto-detected, no
+# flag needed) or passed explicitly via policies-path below. Policy
+# evaluation itself is a CloudCostTree Pro feature — see CI.md.
+
+name: Cost Guard
+
+on:
+  pull_request:
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - "**/terragrunt.hcl"
+      - "infra/**"
+      - "policies.yaml"
+
+env:
+  # Point this at your Terraform root / CloudFormation template / Terraform
+  # state file / Pulumi stack export — anything `cloudcosttree` can read.
+  INFRA_PATH: infra
+  POLICIES_PATH: policies.yaml
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  policy-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce cost & governance policies
+        uses: rulssss/cloudcosttree@main
+        with:
+          infra-path: ${{ env.INFRA_PATH }}
+          policies-path: ${{ env.POLICIES_PATH }}
+          mode: check
+          comment-on-pr: "true"
+          # license-key: ${{ secrets.CLOUDCOSTTREE_LICENSE_KEY }}  # optional, Pro

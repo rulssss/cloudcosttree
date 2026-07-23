@@ -1,0 +1,65 @@
+# CloudCostTree - basic cost analysis on pull requests.
+#
+# Ready to copy into your own repo as-is — only INFRA_PATH below needs to
+# point at your infrastructure. This calls the public rulssss/cloudcosttree
+# action (this same repo), which downloads a prebuilt binary; it never
+# exposes or depends on CloudCostTree's private source.
+#
+# What this does:
+#   - Estimates the cost of your infrastructure as it stands on this PR.
+#   - Compares it against the base branch, so the PR shows a $ delta, not
+#     just an absolute total.
+#   - Publishes a rich Markdown summary to the workflow run's "Summary" tab
+#     (GitHub's Step Summary) automatically — the action writes it itself,
+#     no `actions/upload-artifact` or third party comment action required.
+#   - Posts that same summary as an actual PR comment (updating the previous
+#     one on re-runs) using the GitHub CLI, which every Actions runner
+#     already has preinstalled.
+#
+# This workflow never fails the build — it's purely informational
+# (fail-on-blocking: "false"). For a policy-enforcing, build-failing gate,
+# see cost-guard.yml. See CI.md for the full walkthrough, including GitLab
+# CI and Azure Pipelines equivalents for repos that aren't on GitHub Actions.
+
+name: CloudCostTree
+
+on:
+  pull_request:
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - "**/terragrunt.hcl"
+      - "infra/**"
+  workflow_dispatch: {}
+
+env:
+  # Point this at your Terraform root / CloudFormation template / Terraform
+  # state file / Pulumi stack export — anything `cloudcosttree` can read.
+  INFRA_PATH: infra
+
+permissions:
+  contents: read
+  pull-requests: write # needed to post/update the PR comment
+
+jobs:
+  cost-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          path: current
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: CloudCostTree cost diff
+        uses: rulssss/cloudcosttree@main
+        with:
+          infra-path: current/${{ env.INFRA_PATH }}
+          baseline-path: base/${{ env.INFRA_PATH }}
+          fail-on-blocking: "false"
+          # license-key: ${{ secrets.CLOUDCOSTTREE_LICENSE_KEY }}  # optional, Pro
