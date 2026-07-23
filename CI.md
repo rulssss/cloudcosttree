@@ -32,24 +32,28 @@ action at the repo root ([`action.yml`](action.yml)) — see
 [Using the CloudCostTree Action directly](#using-the-cloudcosttree-action-directly)
 if you'd rather reference it yourself than copy a whole workflow file.
 
-Copy [`​.github/workflows/cloudcosttree.yml`](.github/workflows/cloudcosttree.yml)
+Copy
+[`cloudcosttree.yml`](https://github.com/rulssss/cloudcosttree/blob/main/.github/workflows/cloudcosttree.yml)
 (cost visibility on every PR, never blocks a merge) and/or
-[`​.github/workflows/cost-guard.yml`](.github/workflows/cost-guard.yml)
-(policy enforcement that fails the build) into your own repository, then:
+[`cost-guard.yml`](https://github.com/rulssss/cloudcosttree/blob/main/.github/workflows/cost-guard.yml)
+(policy enforcement that fails the build) — both from the public
+[`rulssss/cloudcosttree`](https://github.com/rulssss/cloudcosttree) repo,
+already wired to `uses: rulssss/cloudcosttree@main` (downloads a prebuilt
+binary; never touches CloudCostTree's private source) — into your own
+repository's `.github/workflows/`, then:
 
 1. Edit the `INFRA_PATH`/`POLICIES_PATH` env vars near the top of each to
-   point at your infrastructure files.
-2. Change `uses: ./current` / `uses: ./` to `uses: rulssss/cloudcosttree@main`
-   (the copies in this repo call the action from the local checkout,
-   building the CLI from source, so this repo can dogfood its own changes;
-   an external repo instead references the public
-   [`rulssss/cloudcosttree`](https://github.com/rulssss/cloudcosttree)
-   action, which downloads a prebuilt binary — see
-   [Installing CloudCostTree in a pipeline](#installing-cloudcosttree-in-a-pipeline)).
-3. Optionally add `license-key: ${{ secrets.CLOUDCOSTTREE_LICENSE_KEY }}` if
-   you have a Pro license — confirmed live on every run, no per-machine
-   activation seat spent doing it (unlike `cloudcosttree license activate`).
-   Omit it to run as Free.
+   point at your infrastructure files. That's the only required edit.
+2. Optionally uncomment `license-key: ${{ secrets.CLOUDCOSTTREE_LICENSE_KEY }}`
+   if you have a Pro license (after adding it as a repo secret) — confirmed
+   live on every run, no per-machine activation seat spent doing it (unlike
+   `cloudcosttree license activate`). Leave it out to run as Free.
+
+(This repo's own copies of these two files, at
+[`.github/workflows/cloudcosttree.yml`](.github/workflows/cloudcosttree.yml)
+and [`.github/workflows/cost-guard.yml`](.github/workflows/cost-guard.yml),
+use `uses: ./` / `uses: ./current` instead — that's this repo dogfooding its
+own in-progress source, not something an external repo should copy.)
 
 That's it — no marketplace listing required, no extra permissions beyond
 what's already declared in the files, no signup, and (via the public action)
