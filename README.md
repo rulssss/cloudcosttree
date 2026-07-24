@@ -94,6 +94,7 @@ all share the same general options:
 | `-d` / `--detailed` | Show Hour/Week/Month breakdown (tree mode) |
 | `--baseline <path>` | Baseline file for `diff` |
 | `--policies <path>` | Governance/cost policies to check (falls back to `./policies.yaml`, then `~/.cloudcosttree/policies.yaml`) |
+| `--max-monthly-cost <n>` | Fail the run if total monthly cost exceeds `<n>` — a zero-setup cost cap, no `policies.yaml` needed (also on `ci report`/`check`/`diff`). **Pro** |
 | `--usage <path>` | Declare real expected monthly traffic for request/GB/event-billed resources (Lambda, SQS, ...) — see below. Every plan, no AWS account needed |
 | `--include-governance` | Also show governance-only FinOps findings (naming/tags) alongside real savings |
 | `--with-usage` | (`analyze` only, **Pro**) enrich with real CloudWatch utilization + live Spot pricing — see below |
@@ -110,7 +111,11 @@ Auto-detected regardless of file extension:
   backend the config uses).
 - A raw Terraform state file (`.tfstate`) — no `terraform` binary or live
   plan needed, since the state is already a snapshot of deployed values.
-- A CloudFormation template (`--params` for parameter overrides).
+- A CloudFormation template (`--params` for parameter overrides). A
+  CDK-synthesized template works too — run `cdk synth`, then point this
+  tool at `cdk.out/<StackName>.template.json`; CDK emits standard
+  CloudFormation, read through the exact same converter, no CDK-specific
+  code needed.
 - A Pulumi stack export (`pulumi stack export`).
 - A Terragrunt root directory — every unit's own plan is evaluated and the
   output is grouped by stack automatically (tree/diff/what-if/CSV all
@@ -158,6 +163,12 @@ telemetry needed, no AWS account needed):
 - **Previous-generation instance type** (t2→t3, m4→m5, c4→c5, r4→r5,
   m3/c3/r3→…5) — same size class, cheaper and faster, across EC2/RDS/
   ElastiCache.
+- **x86 → Graviton (ARM64)** (t3→t4g, m5→m6g, c5→c6g, r5→r6g, EC2/RDS) —
+  cheaper at the same size; unlike every other repricing rule above this
+  changes CPU architecture, so the message always asks you to confirm
+  ARM64 compatibility (AMI/container base image, compiled dependencies)
+  first. Quantified with a real $/mo figure on **Pro**; Free sees an
+  unquantified ~20-40% nudge.
 - **RDS Multi-AZ** — flags the doubled compute cost, asking you to confirm
   HA is genuinely needed.
 - **RDS backup retention above 30 days** — re-priced at the 30-day cap.
@@ -354,10 +365,18 @@ requires an upgrade, and policy checks embedded in tree/analyze/diff/ci
 silently evaluate zero policies (the cost report stays informational;
 nothing can fail a build).
 
+**`--max-monthly-cost <n>`** is a shortcut for an aggregate cost cap
+without writing a `policies.yaml` at all: `tree`/`analyze`/`diff` and `ci
+report`/`check`/`diff` all accept it, folding a synthetic
+`total_monthly_cost <= <n>` policy into the same evaluation as
+`--policies`. Same **Pro** gate as every other policy check — on Free the
+flag is accepted but not enforced, with an explicit note explaining why
+(never a silent no-op).
+
 ## History
 
 ```
-cloudcosttree history save ./my-infra.tf --tag prod-2026-07
+cloudcosttree history save <name> ./my-infra.tf
 cloudcosttree history list
 cloudcosttree history compare <name-or-id> <name-or-id>
 cloudcosttree history delete <name-or-id>
@@ -366,6 +385,19 @@ cloudcosttree history delete <name-or-id>
 Snapshots a cost tree locally (no account, no upload) so you can compare
 cost over time the same way `diff` compares two files. 180-day retention,
 auto-pruned — disk hygiene, not a plan limit; identical on Free and Pro.
+
+`history compare` can also fail the run (exit 1) when total cost
+*increased* past a threshold — a decrease never blocks:
+
+```
+cloudcosttree history save "run-$CI_COMMIT_SHA" ./my-infra.tf
+cloudcosttree history compare @previous @latest --fail-on-drift-pct 20
+```
+
+`@latest`/`@previous` resolve to the most, and second-most, recently saved
+snapshot, so a CI job that saves one new snapshot per run never has to
+track two names itself. `--fail-on-drift-pct`/`--fail-on-drift-abs` are
+independent and combinable — works on both plans.
 
 ## Exports
 
@@ -410,6 +442,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | FinOps recommendations shown | Top 3 by impact | Top 15 by impact |
 | Real usage volume for request/GB/event-billed resources (`--usage` file: Lambda, SQS, SNS, ...) | Included | Included |
 | Real Reserved Instance $ savings | Unquantified nudge only | Real 1yr-no-upfront $/mo figure |
+| Real Graviton (ARM64) migration $ savings | Unquantified ~20-40% nudge | Real $/mo figure |
 | Usage-aware FinOps (`--with-usage`: CloudWatch right-sizing + live Spot pricing + real Lambda cost correction) | Not included | Included |
 | CI/CD runs (`ci report`/`check`/`diff`) | 1,000/month | Unlimited |
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included — cost data stays informational | Unlimited, can fail a build on violation |

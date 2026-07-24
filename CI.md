@@ -111,6 +111,11 @@ violations, exit `0`. Its exit code is the gate:
 | `1`       | Only non-blocking violations (policies with `action: warn`). |
 | `2`       | At least one blocking violation (`action: error` or `action: deny`). |
 
+`ci check`/`ci report`/`ci diff` also accept `--max-monthly-cost <n>`: a
+zero-setup cost cap that doesn't need a `policies.yaml` at all — it folds a
+synthetic `total_monthly_cost <= <n>` policy into the same evaluation. Same
+Pro gate as `-policies` above.
+
 ### `ci diff`
 
 ```
