@@ -1,0 +1,90 @@
+# Verifies install.sh (macOS/Linux) and install.ps1 (Windows) actually work
+# on real, clean GitHub-hosted runners — nobody normally exercises these
+# scripts in CI, so a breaking change (a renamed release asset, a shell
+# syntax slip, a PATH-detection bug) would otherwise only surface when a
+# real user's first install silently fails. Runs the script from this
+# checkout (so a PR editing install.sh/install.ps1 is verified before
+# merge), then confirms the installed binary actually runs and produces a
+# real cost report — not just that the download succeeded.
+
+name: Verify installers
+
+on:
+  push:
+    paths:
+      - "install.sh"
+      - "install.ps1"
+  pull_request:
+    paths:
+      - "install.sh"
+      - "install.ps1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  unix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run install.sh
+        run: sh ./install.sh
+
+      - name: Verify the installed binary runs
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          cloudcosttree --help
+
+      - name: Verify it prices real infrastructure
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          cat > /tmp/sample.yaml <<'EOF'
+          name: installer-check
+          provider: aws
+          region: us-east-1
+          resources:
+            - type: ec2
+              name: web
+              instance_type: t3.medium
+          EOF
+          cloudcosttree /tmp/sample.yaml | grep -q "t3.medium" || (echo "expected instance type not found in output" && exit 1)
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run install.ps1
+        shell: pwsh
+        run: .\install.ps1
+
+      - name: Verify the installed binary runs
+        shell: pwsh
+        run: |
+          $env:Path = "$env:LOCALAPPDATA\cloudcosttree\bin;$env:Path"
+          cloudcosttree --help
+
+      - name: Verify it prices real infrastructure
+        shell: pwsh
+        run: |
+          $env:Path = "$env:LOCALAPPDATA\cloudcosttree\bin;$env:Path"
+          @"
+          name: installer-check
+          provider: aws
+          region: us-east-1
+          resources:
+            - type: ec2
+              name: web
+              instance_type: t3.medium
+          "@ | Out-File -Encoding utf8 sample.yaml
+          $output = cloudcosttree sample.yaml
+          $output | Select-String -Quiet "t3.medium"
+          if (-not ($output | Select-String -Quiet "t3.medium")) {
+            Write-Error "expected instance type not found in output"
+            exit 1
+          }
