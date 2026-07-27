@@ -22,24 +22,17 @@ my-infra.tf ($842.13/mo)
 
 ## Who this is for
 
-CloudCostTree targets small/medium projects that are **100% AWS** and don't
-need multi-cloud — teams who'd rather have a simpler, cheaper pricing model
-and a lightweight, single-binary tool than the deepest possible resource
-coverage.
+CloudCostTree targets small/medium projects that want a simpler, cheaper
+pricing model and a lightweight, single-binary tool for cost visibility —
+today that means AWS, where it prices ~84 resource types with real,
+fetched-from-AWS rates (see [Supported AWS
+resources](#supported-aws-resources) below).
 
-For context: AWS has 240+ services; this tool prices ~84 resource types
-with real, fetched-from-AWS rates (see [Supported AWS
-resources](#supported-aws-resources) below) — everything else either isn't
-a fixed-capacity "resource" a cost tree can represent at all (most of AWS's
-usage-billed services — Textract, Rekognition, Step Functions, and similar
-have no per-resource flat rate to price against, only per-call/per-event
-billing), or just hasn't been mapped yet. Tools like
-[Infracost](https://www.infracost.io/) cover multi-cloud (AWS + Azure +
-GCP) with several hundred resource types, a much more granular usage
-model, and richer CI/CD integrations (native GitLab/Bitbucket templates, a
-hosted dashboard, Slack) — the result of a funded team working on exactly
-that for years. This project doesn't compete on breadth; it competes on
-being small, cheap, and AWS-focused.
+For context: AWS itself has 240+ services; everything this tool doesn't
+price is either not a fixed-capacity "resource" a cost tree can represent
+at all (most of AWS's usage-billed services — Textract, Rekognition, Step
+Functions, and similar have no per-resource flat rate to price against,
+only per-call/per-event billing), or just hasn't been mapped yet.
 
 ## Known limitations at a glance
 
@@ -443,9 +436,8 @@ CloudTrail, and Kinesis Firehose are billed by AWS purely per-request/GB/
 event; nothing in a Terraform/CloudFormation/Pulumi declaration says how
 much traffic one of them will actually get, so by default this tool prices
 them against a documented, conservative assumption (1,000,000 requests/
-month, etc.). A `--usage` file — the same idea as Infracost's usage file —
-lets you declare the real number you actually expect, keyed by the
-resource's Terraform address:
+month, etc.). A `--usage` file lets you declare the real number you
+actually expect, keyed by the resource's Terraform address:
 
 ```yaml
 version: "1.0"
