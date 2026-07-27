@@ -749,7 +749,7 @@ only ever downloads a prebuilt binary, never the private source repo),
 GitLab CI, and Azure Pipelines, JSON/Markdown output, and PR annotations.
 The dedicated `ci` command group (`report` never fails the build;
 `check`/`diff` fail on a blocking policy violation) shares Free's
-1,000-runs/month quota across a repo's pipelines (tracked per-repo
+1,000-runs/month quota across a repo's pipelines (tracked automatically
 server-side on GitHub Actions, since a fresh runner every job has nothing
 local to count against); Pro is unlimited, confirmed live on every run via
 a `license-key` input — no per-machine activation seat is spent doing this,

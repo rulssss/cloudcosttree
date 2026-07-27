@@ -75,9 +75,9 @@ and you'll get:
 Free-plan `ci report`/`ci check`/`ci diff` calls also share a 1,000-runs-per-
 month quota across a repo's pipelines (`cloudcosttree license status` shows
 current usage); Pro is unlimited. On GitHub Actions this is tracked
-server-side, keyed by the repository — a plain local counter can't do this
-job in CI, since every job runs on a fresh, disposable machine with nothing
-to accumulate against.
+automatically server-side — a plain local counter can't do this job in CI,
+since every job runs on a fresh, disposable machine with nothing to
+accumulate against.
 
 ## The `ci` command group
 
