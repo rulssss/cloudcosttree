@@ -93,9 +93,12 @@ there. To install by hand instead, grab a binary directly from
 
 The CLI is fully self-contained: `data/prices.json` (the bundled price
 catalog) travels with it, so a plain `analyze`/`tree`/`diff` run needs no
-AWS account or credentials at all. Only `update-prices` (fetches the
-project's published catalog over HTTPS) and the Pro `--with-usage` flag
-(your own AWS credentials) ever touch the network.
+AWS account or credentials, and touches no network at all. The commands
+that do touch the network, each opt-in: `update-prices` (fetches the
+project's published catalog over HTTPS), the Pro `--with-usage` flag
+(your own AWS credentials), `license buy`/`activate`/`status` (the
+license service), and `--export slack:<https://...>` (POSTs to your own
+Slack webhook URL, if you pass one).
 
 The published catalog itself refreshes on a ~15-day cadence (a weekly cron
 job that skips itself when `data/prices.json` is still fresh — see
@@ -324,14 +327,10 @@ same whether in use or not since Feb 2024, so an EIP resource is priced
 identically regardless of association status).
 
 One documented gap remains, deliberate:
-- Amazon Managed Grafana and Amazon AppStream 2.0 aren't mapped at all.
-  Grafana is 100% per-user-month licensing with no fixed workspace-level
-  fee to price (the same "no fixed capacity to represent" reasoning as
-  Cognito/Step Functions/AppSync — see below). AppStream fleet pricing
-  encodes OS, fleet type, and always-on vs. on-demand billing all into one
-  ambiguous usagetype suffix that couldn't be decoded with confidence from
-  the Price List API data alone — rather than guess and risk a
-  confidently-wrong number, it's left unmapped.
+- Amazon Managed Grafana isn't mapped at all: it's 100% per-user-month
+  licensing with no fixed workspace-level fee to price (the same "no fixed
+  capacity to represent" reasoning as Cognito/Step Functions/AppSync — see
+  below).
 
 `aws_globalaccelerator_accelerator` is mapped (visible in the tree, counted
 in the resource total) but always prices at $0: AWS Global Accelerator's
@@ -770,7 +769,8 @@ See [CI.md](CI.md) for the full guide — GitHub Actions (a ready-to-use
 composite action, published at
 [`rulssss/cloudcosttree`](https://github.com/rulssss/cloudcosttree) so it
 only ever downloads a prebuilt binary, never the private source repo),
-GitLab CI, and Azure Pipelines, JSON/Markdown output, and PR annotations.
+GitLab CI, Azure Pipelines, and Bitbucket Pipelines, JSON/Markdown output,
+and PR annotations.
 The dedicated `ci` command group (`report` never fails the build;
 `check`/`diff` fail on a blocking policy violation) shares Free's
 1,000-runs/month quota across a repo's pipelines (tracked automatically
