@@ -162,9 +162,14 @@ All three commands, uniformly:
   with a `| jq` pipe reading stdout.
 
 - **`-export <format>[:<path>]`**: additionally write the report in another
-  format (`md`, `csv`, `json`, `html`, `pr-comment`) to a file — same syntax
-  as the plain `tree`/`analyze`/`diff` commands' `--export`. Always pass a
-  `<path>` here: stdout is already used for the primary result.
+  format (`md`, `csv`, `json`, `html`, `pr-comment`, `slack`) to a file —
+  same syntax as the plain `tree`/`analyze`/`diff` commands' `--export`.
+  Always pass a `<path>` here: stdout is already used for the primary
+  result. For `slack`, `<path>` can instead be a Slack Incoming Webhook URL
+  (`slack:https://hooks.slack.com/services/...`) — the report POSTs there
+  directly instead of writing a file, handy for turning `ci check` policy
+  violations into a Slack alert with no extra service in the loop:
+  `cloudcosttree ci check ./my-infra.json -export slack:$SLACK_WEBHOOK_URL`.
 
 ## GitHub Actions
 

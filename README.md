@@ -135,7 +135,7 @@ all share the same general options:
 | `--include-governance` | Also show governance-only FinOps findings (naming/tags) alongside real savings |
 | `--with-usage` | (`analyze` only, **Pro**) enrich with real CloudWatch utilization + live Spot pricing — see below |
 | `--scenario <path>` | (`analyze` only) Simulate changes to several resources at once from a YAML file — see [What-if simulator](#what-if-simulator) below |
-| `--export <format>[:path]` | Write a report in `md`/`csv`/`json`/`html`/`pr-comment` (omit `:path` to print to stdout) |
+| `--export <format>[:path]` | Write a report in `md`/`csv`/`json`/`html`/`pr-comment`/`slack` (omit `:path` to print to stdout; a `slack:https://...` webhook URL posts directly instead) |
 
 `--dry-parse` (`cloudcosttree <file> --dry-parse`) skips pricing entirely —
 useful in CI as a fast "does this tool even understand this file" check
@@ -734,11 +734,35 @@ percentage), so pair it with an absolute dollar threshold to catch that
 case too. Works on both plans — this isn't a policy-engine check, just a
 threshold on `history compare`'s own output.
 
+Pipe the same drift check straight to a Slack channel by exporting `slack`
+to your Incoming Webhook URL instead of (or in addition to) failing the
+build:
+
+```sh
+cloudcosttree history compare @previous @latest --fail-on-drift-pct 20 \
+  --export slack:$SLACK_WEBHOOK_URL
+```
+
 ## Exports
 
 `--export <format>[:path]` on `tree`/`analyze`/`diff` (omit `:path` to
-print to stdout, pipeable): `md`, `csv`, `json`, `html`, or `pr-comment`
-(GitHub-flavored, what `ci diff` posts to a PR). Unlimited on both tiers.
+print to stdout, pipeable): `md`, `csv`, `json`, `html`, `pr-comment`
+(GitHub-flavored, what `ci diff` posts to a PR), or `slack` (Slack Block
+Kit JSON). Unlimited on both tiers.
+
+`slack:<path>` writes the Block Kit payload to a local file, same as any
+other format — handy for previewing the message before wiring it up for
+real. `slack:<https://hooks.slack.com/services/...>` (anything starting
+with `http://`/`https://`) instead **POSTs it directly** to that Slack
+Incoming Webhook — no account, no OAuth app, nothing hosted by us in the
+loop: the webhook URL is created entirely inside your own Slack workspace
+and typically lives as a CI secret (`$SLACK_WEBHOOK_URL` above). Works
+identically on every command that already supports `--export`
+(`tree`/`analyze`/`diff`, `history save`/`list`/`compare`, `ci
+report`/`check`/`diff`) — pair it with `history compare
+--fail-on-drift-pct` (cost drift) or `ci check` (policy violations) to
+turn an actionable event into a Slack message instead of a passive digest
+nobody reads.
 
 ## CI/CD
 
@@ -772,7 +796,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 |---|---|---|
 | Analyses (tree/analyze/diff) | Unlimited | Unlimited |
 | What-if simulations | Unlimited | Unlimited |
-| Exports (md/csv/json/html/pr-comment) | Unlimited | Unlimited |
+| Exports (md/csv/json/html/pr-comment/slack) | Unlimited | Unlimited |
 | History (`history save`/`list`/`compare`) | Unlimited, 180-day retention | Unlimited, 180-day retention |
 | FinOps recommendations shown | Top 3 by impact | Top 15 by impact |
 | Real usage volume for request/GB/event-billed resources (`--usage` file: Lambda, SQS, SNS, ...) | Included | Included |
