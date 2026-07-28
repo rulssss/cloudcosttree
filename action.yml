@@ -20,6 +20,10 @@ name: "CloudCostTree"
 description: "Analyze Terraform/CloudFormation/Pulumi cost impact and policy compliance, and comment on the PR."
 author: "CloudCostTree"
 
+branding:
+  icon: "dollar-sign"
+  color: "green"
+
 inputs:
   infra-path:
     description: "Path to the infrastructure to analyze (Terraform root, .tfstate, CloudFormation template, ...). For 'diff' mode this is the current/PR-branch side."
