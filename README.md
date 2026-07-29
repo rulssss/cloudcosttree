@@ -138,6 +138,7 @@ all share the same general options:
 | `--include-governance` | Also show governance-only FinOps findings (naming/tags) alongside real savings |
 | `--with-usage` | (`analyze` only, **Pro**) enrich with real CloudWatch utilization + live Spot pricing — see below |
 | `--scenario <path>` | (`analyze` only) Simulate changes to several resources at once from a YAML file — see [What-if simulator](#what-if-simulator) below |
+| `--write-changes <dir>` | (`analyze` only, **Pro**) Write a what-if simulation's result to a new file/directory, never the original — see [What-if simulator](#what-if-simulator) below |
 | `--export <format>[:path]` | Write a report in `md`/`csv`/`json`/`html`/`pr-comment`/`slack` (omit `:path` to print to stdout; a `slack:https://...` webhook URL posts directly instead) |
 
 `--dry-parse` (`cloudcosttree <file> --dry-parse`) skips pricing entirely —
@@ -630,6 +631,74 @@ than one resource in a single what-if run). `--scenario` is mutually
 exclusive with `-t`/`--target` and any individual what-if flag on the
 command line — put every target's flags in the file instead.
 
+### Writing simulated changes to disk (`--write-changes`, Pro)
+
+```
+cloudcosttree analyze ./my-infra.tf --target aws_instance.web --instance-type m5.large --write-changes ./out
+```
+
+`--write-changes <dir>` goes one step further than the console report or
+`--export`: it writes the simulated change into a **new** directory —
+your original input is never opened for writing. Only the specific
+attribute(s) that changed are patched; everything else (formatting,
+comments, unrelated resources) is left untouched. Works with `-t`/`--target`
+or `--scenario`, the same way `--export` does.
+
+Not every input format this tool reads can be written back to, and even
+within a supported format, not every change can be:
+
+- **Supported**: Terraform (`.tf`, including local modules) and Terragrunt
+  — both are, underneath, a directory of HCL this tool copies and then
+  patches in place, so `<dir>` must be a new, empty directory (Terraform
+  evaluates the whole directory as one config, so there's no such thing as
+  copying "just the one changed file") — plus this tool's own YAML/JSON
+  schema, which is actually the *easiest* of the three: it has no
+  variables or expressions at all, so there's no ambiguity about what's
+  safe to overwrite, and (unlike Terraform/Terragrunt) it writes a single
+  new file, `<name>_cct.<ext>`, next to the original — `<dir>` can be the
+  same directory the input already lives in, and doesn't need to be empty,
+  since the `_cct` suffix can never collide with a file you actually
+  authored. Two caveats specific to this schema: the output is a fresh
+  re-marshal of the fully-resolved result, not a byte-for-byte patch of
+  your original file, so hand-written comments aren't preserved, and a
+  field this tool normalizes automatically (e.g. a per-resource `region`,
+  backfilled from the top-level one) may show up explicitly in the output
+  even if you never wrote it yourself.
+- **Not supported, structurally** — not "not yet": a raw `.tfstate` file, a
+  `pulumi stack export`, and a CDK-synthesized template. None of these is
+  code a person hand-edits and re-applies — they're deployed-state
+  snapshots or build artifacts. A registry/remote Terraform module (a
+  `module` block whose `source` isn't a local path) is out of scope for the
+  same reason: there's no local file to patch.
+- **Not supported yet, but plausible later**: a hand-written CloudFormation
+  template (JSON/YAML, *not* CDK-synthesized output) is real source in
+  principle, but needs its own intrinsics-aware patcher (`Ref`/`Fn::GetAtt`/
+  `Fn::Sub` play the same "don't touch this" role `var.foo` plays for
+  Terraform) — a separate implementation, not shipped yet.
+- **Even in a supported format**: only a plain literal attribute is ever
+  overwritten. An attribute set to a variable, a reference, or any other
+  expression is left exactly as-is. Every change that couldn't be safely
+  written — wrong format, non-literal, unmapped flag, ambiguous match — is
+  listed with a specific reason in `<dir>/WHATIF_CHANGES.md`
+  (`WHATIF_CHANGES_cct.md` for the own-schema case, matching its `_cct`
+  file-naming convention above), never silently dropped.
+- **Terragrunt's idiomatic `inputs = { ... }` pattern** (a module declares
+  `var.instance_type`, the unit's own `terragrunt.hcl` supplies the real
+  value) is handled as a fallback: when a module attribute turns out to be
+  exactly `var.<name>`, this tool checks whether the owning unit's
+  `terragrunt.hcl` has a literal `inputs.<name>` and patches that instead
+  of giving up. One trade-off worth knowing: since there's no way to edit
+  a single key inside an `inputs = {...}` object without rebuilding the
+  whole thing, this reformats the entire `inputs` block (key order can
+  change) rather than touching one line — every *other* key's value is
+  still required to already be a plain literal too, or this declines the
+  whole fallback rather than guess.
+
+This is a **CloudCostTree Pro** feature — see [Free vs Pro](#free-vs-pro).
+On Free, `--write-changes` is accepted but writes nothing: the report
+renders exactly as it would without the flag, plus an explicit upgrade
+note.
+
 ## Policies
 
 Define governance and cost rules in a `policies.yaml` (see the one at the
@@ -786,6 +855,19 @@ what-if panel, and diff view on top of the same CLI (every number comes
 from a real `cloudcosttree analyze --export json:-` call, no re-implemented
 pricing/parsing logic) — see its own README for setup.
 
+The what-if panel mirrors both CLI what-if modes: "Apply What-If" previews
+one resource's change (the `-t`/`--target` flow), and "＋ Add to Scenario"
+(offered once a preview is showing) stages that same change alongside
+others — "Run Scenario" then applies them all together in one combined
+report, the UI equivalent of `--scenario`. Re-staging a resource already in
+the list replaces its entry rather than duplicating it.
+
+"Generate File (Pro)" materializes whichever what-if (single or scenario)
+is currently showing as real file(s) via `--write-changes` — a new,
+uniquely-named folder next to the original input, never the original
+itself; see [What-if simulator](#what-if-simulator) for exactly which
+input formats and attribute types this supports.
+
 ## Free vs Pro
 
 Free is a generous, unlimited cost-visibility tool for local use — Pro adds
@@ -804,6 +886,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Usage-aware FinOps (`--with-usage`: CloudWatch right-sizing + live Spot pricing + real Lambda cost correction) | Not included | Included |
 | CI/CD runs (`ci report`/`check`/`diff`) | 1,000/month | Unlimited |
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included — cost data stays informational | Unlimited, can fail a build on violation |
+| Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
 | Cloud provider support | AWS | AWS |
 | VS Code extension | Included | Included |
 
@@ -837,6 +920,8 @@ pkg/usage/           --with-usage: live CloudWatch/EC2 Spot/EBS/EIP/ELBv2 calls 
 pkg/finops/          Savings-recommendation rules (declared-config rules + usage-aware rules)
 pkg/policy/          Governance/cost policy DSL: parsing, condition evaluation, templates
 pkg/tree/            Rendering: tree/comparison/what-if views, every export format
+pkg/writeback/       --write-changes (Pro): patches a copy of the source with a
+                    what-if simulation's result, never the original
 pkg/history/         Local cost-snapshot storage + comparison
 pkg/ci/              CI/CD-shaped report/check/diff output
 pkg/license/         Free/Pro state, quotas, license Worker client
