@@ -183,6 +183,25 @@ Auto-detected regardless of file extension:
 - A Terragrunt root directory — every unit's own plan is evaluated and the
   output is grouped by stack automatically (tree/diff/what-if/CSV all
   render one heading per Terragrunt unit); see `examples/terragrunt-demo/`.
+- An Atmos (Cloud Posse) stack directory — a root containing
+  `atmos.yaml`/`atmos.yml`, with per-stack YAML under `stacks/` declaring
+  `components.terraform.<name>.vars` for one or more real Terraform
+  component modules under `components/terraform/<name>/`. **Requires
+  CloudCostTree Pro** — on Free, pointing this tool at an Atmos root exits
+  with an upgrade message before any parsing happens (a hard stop, not a
+  degraded report, unlike every other Pro feature). When the `atmos` binary
+  is in PATH, every stack/component pair's real `atmos terraform plan` is
+  evaluated (Atmos's own config resolution correctly handles `import:`
+  catalog/mixin inheritance) and grouped into stack sections exactly like
+  Terragrunt; without the binary, falls back to a static, credential-free
+  scan of each stack YAML file's own directly-declared vars (`import:` is
+  not followed in this mode) merged over each component module's variable
+  defaults. See `examples/atmos-demo/` for a minimal dev/staging/prod
+  fixture, or `examples/atmos-demo-advanced/` for a larger, more realistic
+  one — 7 components spanning 12 distinct billable AWS resource types
+  across 4 stacks (dev, staging, and two prod regions), with a real
+  multi-level `import:` hierarchy (a per-tier sizing catalog shared across
+  stacks, plus per-region mixins).
 
 ## Supported AWS resources
 
@@ -887,6 +906,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | CI/CD runs (`ci report`/`check`/`diff`) | 1,000/month | Unlimited |
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included — cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
+| Input format: Atmos (Cloud Posse) stacks | Not included | Included |
 | Cloud provider support | AWS | AWS |
 | VS Code extension | Included | Included |
 
