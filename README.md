@@ -61,6 +61,7 @@ full, honest list of what that covers and why.
 - [Usage-aware FinOps — `--with-usage` (Pro)](#usage-aware-finops---with-usage)
 - [What-if simulator](#what-if-simulator)
 - [Policies](#policies)
+- [Cost Score](#cost-score)
 - [History](#history)
 - [Exports](#exports)
 - [CI/CD](#cicd)
@@ -780,6 +781,44 @@ nothing on Free, passing `--max-monthly-cost` on Free prints an explicit
 note that it wasn't enforced, so the flag never *looks* like it worked when
 it didn't.
 
+## Cost Score
+
+Every `tree`/`analyze`/`diff` run computes a **Cost Score** — a 0-100 number
+plus a letter grade (A-F) rolling up every FinOps recommendation and policy
+violation found in that run, weighted by severity and normalized by resource
+count so a 200-resource stack with a couple of low-severity nudges doesn't
+score worse than a 3-resource stack with the same absolute findings:
+
+```
+$ cloudcosttree ./my-infra.tf
+
+...
+──────────────────────────────────────────────────────────────
+COST SCORE: B (82/100)
+──────────────────────────────────────────────────────────────
+```
+
+Unlike real Reserved Instance/Spot savings or policy enforcement, the Cost
+Score is **available on every plan** — it's meant as a quick, shareable "is
+this stack healthy" signal, not something gated behind an upgrade. It's
+computed from each finding's *real* severity, not the Free-tier display
+redaction some FinOps rules apply to their dollar figure (see
+[FinOps recommendations](#finops-recommendations) above) — a real issue's
+severity doesn't soften just because its exact $/mo figure is hidden from a
+Free report.
+
+It appears in every report format this tool produces: the console (`tree`/
+`analyze`/`diff`), every `--export` format (`md`/`csv`/`json`/`html`/
+`pr-comment`/`slack`), and — most usefully — `history save`/`list`/`compare`
+(see [History](#history) below), so a team can track whether a stack is
+getting healthier or worse over time the same way it already tracks cost:
+
+```
+$ cloudcosttree history compare @previous @latest
+...
+Cost Score:         78/C -> 85/B (+7)
+```
+
 ## History
 
 ```
@@ -792,8 +831,9 @@ cloudcosttree history import <path>
 ```
 
 Snapshots a cost tree locally (no account, no upload) so you can compare
-cost over time the same way `diff` compares two files. 180-day retention,
-auto-pruned — disk hygiene, not a plan limit; identical on Free and Pro.
+cost — and [Cost Score](#cost-score) — over time the same way `diff`
+compares two files. 180-day retention, auto-pruned — disk hygiene, not a
+plan limit; identical on Free and Pro.
 
 `history export`/`history import` copy that same snapshot JSON file to/from
 an arbitrary path, so a snapshot can be shared with a team via git, S3, or
@@ -899,6 +939,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | What-if simulations | Unlimited | Unlimited |
 | Exports (md/csv/json/html/pr-comment/slack) | Unlimited | Unlimited |
 | History (`history save`/`list`/`compare`) | Unlimited, 180-day retention | Unlimited, 180-day retention |
+| Cost Score (health grade rolling up FinOps + policy findings) | Included | Included |
 | FinOps recommendations shown | Top 3 by impact | Top 15 by impact |
 | Real usage volume for request/GB/event-billed resources (`--usage` file: Lambda, SQS, SNS, ...) | Included | Included |
 | Real Reserved Instance $ savings | Unquantified nudge only | Real 1yr-no-upfront $/mo figure |
@@ -939,10 +980,13 @@ pkg/usagefile/       --usage file: local, declarative volume overrides (every pl
 pkg/usage/           --with-usage: live CloudWatch/EC2 Spot/EBS/EIP/ELBv2 calls (Pro)
 pkg/finops/          Savings-recommendation rules (declared-config rules + usage-aware rules)
 pkg/policy/          Governance/cost policy DSL: parsing, condition evaluation, templates
+pkg/score/           Cost Score: FinOps + policy findings → a 0-100/A-F health grade (every plan)
+pkg/resourcespec/    Per-resource-type registry: which what-if flags apply to which
+                    resource type, and their Terraform HCL attribute path
 pkg/tree/            Rendering: tree/comparison/what-if views, every export format
 pkg/writeback/       --write-changes (Pro): patches a copy of the source with a
                     what-if simulation's result, never the original
-pkg/history/         Local cost-snapshot storage + comparison
+pkg/history/         Local cost-snapshot storage + comparison (including Cost Score trend)
 pkg/ci/              CI/CD-shaped report/check/diff output
 pkg/license/         Free/Pro state, quotas, license Worker client
 paddle-license-worker/ Cloudflare Worker fronting Paddle for activation/validation (see above)
