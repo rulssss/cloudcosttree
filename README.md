@@ -583,7 +583,15 @@ as before (a printed note, never a failure).
   (under 10% average), recommends one size down within the same instance
   family/generation (e.g. `m5.xlarge` → `m5.large`) with an exact repriced
   dollar delta — instead of guessing anything from the declared instance
-  type alone.
+  type alone. Reserved-Instance-aware: also calls
+  `ec2:DescribeReservedInstances` for every distinct EC2 instance type in
+  your infrastructure, and when the account holds one or more active RIs of
+  that exact type, the recommendation is caveated rather than silently
+  suppressed — an RI existing doesn't confirm *this specific* instance is
+  the one it covers (an account can run more instances of a type than it
+  holds RIs for), so this tool never guesses either way. Stranding a paid
+  RI commitment while paying on-demand for a smaller instance is often
+  net-negative, which is exactly what the caveat asks you to check first.
 - **Live EC2 Spot pricing** — pulls the current Spot price
   (`ec2:DescribeSpotPriceHistory`, Linux/UNIX) for every distinct EC2
   instance type in your infrastructure and quotes the real
@@ -688,6 +696,7 @@ principal to assume it.
 
 Needs `cloudwatch:GetMetricData`, `ec2:DescribeSpotPriceHistory`,
 `ec2:DescribeVolumes`, `ec2:DescribeSnapshots`, `ec2:DescribeAddresses`,
+`ec2:DescribeReservedInstances`,
 `elasticloadbalancing:DescribeTargetGroups`/`DescribeTargetHealth`,
 `logs:StartQuery`/`logs:GetQueryResults`,
 `autoscaling:DescribeAutoScalingGroups`, and — with `--stack-name`,
