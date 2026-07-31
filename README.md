@@ -449,6 +449,18 @@ telemetry needed, no AWS account needed):
   real $/mo figure on **Pro** when the catalog has a matching Reserved
   rate; Free/no-catalog-match sees the unquantified nudge. See
   [below](#real-reserved-instance-savings).
+- **Non-production resource running 24/7** — an EC2/RDS/RDS Cluster
+  resource tagged or named as dev/staging/test/qa/sandbox (an `Environment`-
+  style tag, or a whole `-`/`_`/`.`-separated token of its name — not a raw
+  substring match, so `latest-app` or `underdevelopment-svc` don't
+  false-positive) with no autoscaling and still priced at the full default
+  24/7 hours. Re-priced exactly at an assumed business-hours-only schedule
+  (~173h/month, 40hr/week) via the same `HoursPerMonth` math
+  `--hours-per-month` already uses, so the savings figure is real, not a
+  flat percentage guess — available on **every plan**, since unlike the
+  Reserved/Graviton rules above it needs no new pricing data asset, just
+  logic over what's already declared. A resource that already has a reduced
+  `HoursPerMonth` set (already scheduled) is never re-flagged.
 - **Governance nudges** (no dollar figure): missing tags/generic resource
   names, Terraform's implicit `default_*` resources (default security
   group, VPC, route table, network ACL) left unmanaged, and an S3 bucket
@@ -852,6 +864,22 @@ cloudcosttree policy init      # scaffold a commented, ready-to-run policies.yam
 cloudcosttree policy validate  # check syntax without evaluating anything
 cloudcosttree policy list      # show every policy that would apply
 ```
+
+`policy init --pack <name>` writes a curated, ready-to-run pack instead of
+the default 6-policy template — same DSL, just different starting content:
+
+| Pack | Focus |
+|---|---|
+| `well-architected` | Required tags, no generic names, RDS backup retention ≥7 days, an ownership-coverage cap (`count(...)`), a whole-infrastructure cost ceiling |
+| `finops-guardrails` | Bans previous-generation instance types (t2/m4/c4/r4) outright, a per-resource cost cap, NAT Gateway low-traffic, and a stricter, blocking (`action: error`) total-cost cap |
+
+```
+cloudcosttree policy init --pack well-architected
+cloudcosttree policy init --pack finops-guardrails
+```
+
+An unrecognized pack name is rejected with the current list of valid names
+rather than silently falling back to the default template.
 
 Condition language (evaluated per-resource by default):
 
