@@ -38,12 +38,15 @@ only per-call/per-event billing), or just hasn't been mapped yet.
 
 The full picture lives in [Supported AWS resources](#supported-aws-resources)
 and the sections below, but the short version: **AWS-only, no multi-cloud**;
-an Auto Scaling Group using `mixed_instances_policy` stays unpriced rather
-than guessed at; CloudFormation input never carries a real post-apply
-resource ID (no `--with-usage` enrichment, since a plain template has no
-live state to read one from — Terraform and Pulumi input both do); and
-Amazon Managed Grafana / most of AppStream 2.0's fleet configurations aren't
-mapped. Everything else this tool doesn't price is either genuinely free
+an Auto Scaling Group using `mixed_instances_policy` stays unpriced from
+declared config alone (`--with-usage` resolves it from real AWS data — see
+below); CloudFormation input never carries a real post-apply
+resource ID by itself (unlike Terraform/Pulumi input, which always does) —
+`--with-usage` enrichment needs the extra `--stack-name <name>` flag to
+resolve one live, since a plain template has no state of its own to read it
+from; and Amazon Managed Grafana / most of AppStream 2.0's fleet
+configurations aren't mapped. Everything else this tool doesn't price is
+either genuinely free
 (a VPC, a security group) or just hasn't been mapped yet — see below for the
 full, honest list of what that covers and why.
 
@@ -138,6 +141,7 @@ all share the same general options:
 | `--usage <path>` | Declare real expected monthly traffic for request/GB/event-billed resources (Lambda, SQS, ...) — see below. Every plan, no AWS account needed |
 | `--include-governance` | Also show governance-only FinOps findings (naming/tags) alongside real savings |
 | `--with-usage` | (`analyze` only, **Pro**) enrich with real CloudWatch utilization + live Spot pricing — see below |
+| `--stack-name <name>` | (`analyze` only, with `--with-usage`, CloudFormation input only, **Pro**) the deployed stack name, needed to resolve real resource IDs for a CloudFormation template — see below |
 | `--scenario <path>` | (`analyze` only) Simulate changes to several resources at once from a YAML file — see [What-if simulator](#what-if-simulator) below |
 | `--write-changes <dir>` | (`analyze` only, **Pro**) Write a what-if simulation's result to a new file/directory, never the original — see [What-if simulator](#what-if-simulator) below |
 | `--export <format>[:path]` | Write a report in `md`/`csv`/`json`/`html`/`pr-comment`/`slack` (omit `:path` to print to stdout; a `slack:https://...` webhook URL posts directly instead) |
@@ -181,6 +185,17 @@ Auto-detected regardless of file extension:
   CloudFormation intrinsic (only a `{"Ref": "ParamName"}` against
   `--params`/`Parameters` is).
 - A Pulumi stack export (`pulumi stack export`).
+- A Terraform Cloud/Enterprise workspace's remote state, fetched live over
+  the TFC/TFE API instead of a local file: `tfc://<org>/<workspace>` for
+  app.terraform.io, or `tfe://<hostname>/<org>/<workspace>` for a
+  self-hosted Terraform Enterprise install — pass either in place of a file
+  path to `tree`/`analyze`/`diff`/`ci`/`history save`/`policy check`. Auth is
+  a Terraform Cloud/Enterprise API token in the `TFE_TOKEN` environment
+  variable — the same variable `terraform login` and the official `go-tfe`
+  client already use, so a shell or CI job already configured for the
+  `terraform` CLI needs no new secret. The workspace's current state version
+  is fetched and priced exactly like a local `.tfstate` file — no new
+  parsing, just a new byte source. See `pkg/parser/tfc.go`.
 - A Terragrunt root directory — every unit's own plan is evaluated and the
   output is grouped by stack automatically (tree/diff/what-if/CSV all
   render one heading per Terragrunt unit); see `examples/terragrunt-demo/`.
@@ -319,18 +334,33 @@ no-cross-referencing design (see the Aurora Serverless v2 gap above for
 where that design is *not* bent). Falls back to `max_size`/`min_size` when
 `desired_capacity` isn't set. An ASG using `mixed_instances_policy`
 (multiple possible instance types with weighted overrides) isn't resolved
-— it stays unpriced rather than guessing which override actually gets
-used. Only Terraform supports this cross-reference so far; CloudFormation
-and Pulumi resolve resource references differently (logical IDs and URNs,
-respectively) and aren't wired up yet.
+from declared config alone — there's no way to know which override
+actually gets used without asking AWS directly, so it stays unpriced
+(`autoscaling_group_unresolved`) unless `--with-usage` is used (see
+[below](#usage-aware-finops---with-usage)) to resolve it from the group's
+real, currently-running instances. CloudFormation and Pulumi support this cross-reference too: a CFN
+template resolves the join by logical ID (via the `LaunchTemplate.
+LaunchTemplateId`/`LaunchConfigurationName` property's `Ref`, since a
+static template has no live stack to fetch a real post-apply ID from), and
+a Pulumi stack export resolves it by the referenced resource's real,
+already-deployed id/name (from its own `Outputs`) — same "post-apply ID"
+join Terraform's `.tfstate` uses, just read from Pulumi's resource shape
+instead.
 
 EKS managed node groups (`aws_eks_node_group`) are priced too — unlike
 ASGs, no cross-reference is needed here: `instance_types` and
 `scaling_config` are declared directly on the node group resource itself.
 Worker nodes are billed as plain EC2 instances (the EKS control plane's own
-per-cluster fee is `eks_cluster`'s, fetched separately); Fargate-backed EKS
-pods (`aws_eks_fargate_profile`) aren't priced — a profile doesn't declare
-per-pod vCPU/memory the way an ECS Fargate task definition does.
+per-cluster fee is `eks_cluster`'s, fetched separately). Fargate-backed EKS
+pods (`aws_eks_fargate_profile`/`AWS::EKS::FargateProfile`/
+`aws:eks/fargateProfile:FargateProfile`) are priced too, at an assumed
+Fargate baseline (0.25 vCPU/0.5 GB, the smallest Fargate task size, running
+continuously) — a profile only selects which pods get scheduled onto
+Fargate by namespace/label selector; the real per-pod vCPU/memory request
+lives in the Kubernetes pod spec, a data source no format this tool parses
+exposes. Reuses the exact same fetched rate as ECS/Fargate below (both
+services bill the same underlying Fargate compute at the same per-vCPU/
+per-GB price), not App Runner's different compute-unit rate.
 
 `aws_sagemaker_endpoint` (real-time inference) is priced too, the second
 and (by design) last cross-reference this tool's parsers make: its
@@ -340,9 +370,9 @@ and (by design) last cross-reference this tool's parsers make: its
 pattern `aws_autoscaling_group` uses above. A multi-variant endpoint
 configuration (`production_variants` with more than one entry, an A/B
 test setup) is priced against its first declared variant only, since this
-tool has no way to know real traffic split across variants. Only
-Terraform supports this cross-reference; same CloudFormation/Pulumi gap as
-the ASG one above. Standalone Elastic IPs (`aws_eip`/`AWS::EC2::EIP`/
+tool has no way to know real traffic split across variants. CloudFormation
+and Pulumi support this cross-reference too, same join as the ASG one
+above. Standalone Elastic IPs (`aws_eip`/`AWS::EC2::EIP`/
 `aws:ec2/eip:Eip`) are also priced (public IPv4 addresses have billed the
 same whether in use or not since Feb 2024, so an EIP resource is priced
 identically regardless of association status).
@@ -514,15 +544,26 @@ or an EC2/ECS/Lambda instance role) to replace static-config guesses with
 real numbers (and confirm facts no static config can know at all, like an
 EBS volume's real attachment status), for resources this tool can resolve a
 real AWS resource ID for — a `.tfstate` file, a `terraform show -json` plan
-against already-applied infrastructure, or a `pulumi stack export`'s
-per-resource `outputs.id`/`outputs.arn`. A brand-new resource being
-`create`d for the first time (Terraform), or one Pulumi hasn't deployed
-yet (empty `outputs`), has no real ID and is silently skipped for this
-enrichment (the rest of the report is unaffected). CloudFormation input
-never has a real ID to resolve at all — a plain template has no post-apply
-state of its own, unlike the two deployment-aware formats above — so
-`--with-usage` enrichment is a no-op for CloudFormation-parsed
-infrastructure specifically.
+against already-applied infrastructure, a `pulumi stack export`'s
+per-resource `outputs.id`/`outputs.arn`, or a CloudFormation template paired
+with `--stack-name <name>` (below). A brand-new resource being `create`d for
+the first time (Terraform), or one Pulumi hasn't deployed yet (empty
+`outputs`), has no real ID and is silently skipped for this enrichment (the
+rest of the report is unaffected).
+
+CloudFormation input is the one format that can't carry a real resource ID
+itself at parse time — a plain template has no post-apply state of its own,
+unlike the two deployment-aware formats above — so it needs one extra
+opt-in step: `--stack-name <name>`, the name of the stack this template was
+actually deployed as (`aws cloudformation create-stack --stack-name <name>
+...`). With it, `--with-usage` makes one extra, read-only
+`cloudformation:DescribeStackResources` call to resolve every resource's
+real physical ID from its logical ID (matched the same way this tool's own
+CloudFormation parser already keys resources by logical ID — see
+`pkg/parser/cloudformation.go`), then every enrichment below runs exactly as
+it would for a Terraform/Pulumi resource with a real ID. Without
+`--stack-name`, CloudFormation input is skipped for `--with-usage` exactly
+as before (a printed note, never a failure).
 
 - **Real CPU-based right-sizing** — pulls each EC2/RDS/RDS Cluster
   resource's actual average CPU utilization from CloudWatch
@@ -549,6 +590,19 @@ infrastructure specifically.
   recommendation-only, deliberately: an EC2 instance's on-demand rate is
   already a hard catalog fact, not a volume guess the way Lambda's
   declared cost is.
+- **Real `mixed_instances_policy` resolution** — another headline-number
+  correction, not just a recommendation. An Auto Scaling Group using
+  `mixed_instances_policy` has no single declared `instance_type` at all
+  (multiple possible overrides, weighted) — declared config alone can't
+  say which one actually got launched, so it renders unpriced
+  (`autoscaling_group_unresolved`) without this. Calls
+  `autoscaling:DescribeAutoScalingGroups` for every such ASG this tool can
+  resolve a real ASG name for, which already reports each running
+  instance's real `InstanceType` directly (no separate
+  `ec2:DescribeInstances` call needed), and prices the group as the most
+  common instance type among its currently `InService` instances — a
+  mixed group can genuinely run more than one type at once, and this tool
+  prices a resource as a single type × count, not a weighted mix.
 - **Confirmed orphaned EBS volumes** — calls `ec2:DescribeVolumes` for every
   standalone EBS volume this tool can resolve a real volume ID for and flags
   the ones AWS confirms are genuinely unattached (`State: available`), at
@@ -563,7 +617,7 @@ infrastructure specifically.
   truth, not a config-only guess" discipline as the orphaned-volume check
   above.
 - **Confirmed empty-target-group load balancers** — calls
-  `elasticloadbalancingv2:DescribeTargetGroups` + `DescribeTargetHealth`
+  `elasticloadbalancing:DescribeTargetGroups` + `DescribeTargetHealth`
   for every ALB/NLB/GWLB this tool can resolve a real ARN for, and flags
   the ones with zero registered targets across every target group behind
   them, at the load balancer's full monthly cost. Classic ELB isn't
@@ -587,10 +641,46 @@ infrastructure specifically.
   quantify: Lambda's CPU allocation scales with `memory_size`, so Duration
   should be re-checked after lowering it.
 
+### Multi-region and multi-account (`--accounts`)
+
+Every call above is made once per distinct AWS region actually declared
+across the infrastructure's resources (each resource's own `region` falling
+back to the top-level one when unset), not just once for the whole run —
+so a Terraform config spanning several regions gets real data for every
+resource, not just whichever region happened to be checked first.
+
+For an infrastructure whose resources span more than one AWS **account**
+(e.g. several `provider` aliases, each assuming a different role), an
+optional `accounts.yaml` maps a resource address/name pattern to the
+`role_arn` that resource's calls should assume:
+
+```yaml
+version: "1.0"
+accounts:
+  - match: "module.prod.*"
+    role_arn: "arn:aws:iam::111111111111:role/cloudcosttree-readonly"
+  - match: "module.staging.*"
+    role_arn: "arn:aws:iam::222222222222:role/cloudcosttree-readonly"
+```
+
+`--accounts <path>` points at it explicitly; without the flag, this tool
+looks for `./accounts.yaml`, then `~/.cloudcosttree/accounts.yaml` — same
+convention as `--policies`. `match` is matched against a Terraform
+resource's own address when it has one (`module.prod.aws_instance.web`),
+falling back to its plain name for every other input format. A resource
+matching no entry — or when no `accounts.yaml` exists at all — uses the
+default AWS credential chain, exactly as `--with-usage` always did; this is
+purely additive. Needs `sts:AssumeRole` on the credentials running
+`--with-usage`, plus a trust policy on each target `role_arn` allowing that
+principal to assume it.
+
 Needs `cloudwatch:GetMetricData`, `ec2:DescribeSpotPriceHistory`,
 `ec2:DescribeVolumes`, `ec2:DescribeSnapshots`, `ec2:DescribeAddresses`,
-`elasticloadbalancingv2:DescribeTargetGroups`/`DescribeTargetHealth`, and
-`logs:StartQuery`/`logs:GetQueryResults` IAM permissions. A
+`elasticloadbalancing:DescribeTargetGroups`/`DescribeTargetHealth`,
+`logs:StartQuery`/`logs:GetQueryResults`,
+`autoscaling:DescribeAutoScalingGroups`, and — with `--stack-name`,
+CloudFormation input only — `cloudformation:DescribeStackResources` IAM
+permissions. A
 missing-credentials or missing-permission problem is
 reported with an actionable message (not a raw SDK stack trace) and never
 fails the run — the rest of the report still renders normally without the
@@ -650,6 +740,37 @@ CLI doesn't support directly: `--scenario` is the only way to change more
 than one resource in a single what-if run). `--scenario` is mutually
 exclusive with `-t`/`--target` and any individual what-if flag on the
 command line — put every target's flags in the file instead.
+
+### Structural changes (`add:`/`remove:`)
+
+A `--scenario` entry can also synthesize a brand-new resource or delete an
+existing one, instead of re-flagging one that's already declared:
+
+```yaml
+version: "1.0"
+changes:
+  - add:
+      type: rds
+      name: read-replica-1
+      instance_type: db.r6g.large
+      size_gb: 100
+  - target: legacy-worker
+    remove: true
+```
+
+`add:` declares the new resource with the exact same fields this tool's own
+YAML/JSON schema uses for any resource (`type`, `name`, `instance_type`,
+`size_gb`, ...) — nothing new to learn there either. `type` and `name` are
+required; `region` defaults to the infrastructure's own region if not given.
+The synthesized resource has no `resource_id`/`arn` (nothing real exists yet
+to have one) and renders ungrouped in the what-if tree (no module/stack
+grouping) — acceptable for simulating "what if I add a read replica"-style
+questions, where the point is the cost delta, not where it'd land in a real
+module tree. `remove: true` (with a `target`) deletes that resource instead;
+neither `add:` nor `remove:` can be combined with `flags:` in the same
+entry. `--write-changes` doesn't support either yet — a scenario entry using
+one is listed in `WHATIF_CHANGES.md` as unsupported, the same way an
+unmapped flag or a non-literal expression already is.
 
 ### Writing simulated changes to disk (`--write-changes`, Pro)
 
@@ -751,9 +872,9 @@ display order and the icon shown in the violations section.
 `scope` (optional) is `resource` (the default above) or `aggregate`. An
 `aggregate`-scoped policy is checked exactly once against
 whole-infrastructure facts instead of per-resource — `total_monthly_cost`
-and `resource_count`, the only two fields the aggregate context exposes —
-producing at most one violation with no single resource attached to it.
-Mutually exclusive with `resource_type` (there's no single resource to
+and `resource_count`, the only two plain fields the aggregate context
+exposes — producing at most one violation with no single resource attached
+to it. Mutually exclusive with `resource_type` (there's no single resource to
 match a type against):
 
 ```yaml
@@ -763,6 +884,26 @@ match a type against):
   action: "warn"
   severity: "high"
 ```
+
+An aggregate condition can also use `count(<condition>)` — the one
+exception to "aggregate only sees whole-infrastructure numbers": it
+evaluates `<condition>` against every resource individually (the same
+condition language as a `resource`-scoped policy, `and`/`or`/`not`/`in`/
+`exists` included) and yields how many matched, so a single aggregate policy
+can cap *how many* resources fail an otherwise per-resource check:
+
+```yaml
+- name: "Most resources must have an Owner tag"
+  scope: "aggregate"
+  condition: "count(not (tags.Owner exists)) <= 5"
+  action: "warn"
+  severity: "medium"
+```
+
+`count(...)` is a special form, not a general function-call grammar — it's
+only meaningful inside an aggregate condition (evaluating it in a
+`resource`-scoped policy fails with an explicit error, rather than silently
+returning 0).
 
 Policy evaluation (cost guardrails, tag/FinOps rules) is a **CloudCostTree
 Pro** feature — see [Free vs Pro](#free-vs-pro). On Free, `policy check`
