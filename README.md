@@ -60,6 +60,7 @@ full, honest list of what that covers and why.
 - [Supported AWS resources](#supported-aws-resources)
 - [FinOps recommendations](#finops-recommendations)
 - [Real usage volume — `--usage` file (every plan)](#real-usage-volume---usage-file)
+- [Custom price books (every plan)](#custom-price-books)
 - [Real Reserved Instance savings (Pro)](#real-reserved-instance-savings)
 - [Usage-aware FinOps — `--with-usage` (Pro)](#usage-aware-finops---with-usage)
 - [What-if simulator](#what-if-simulator)
@@ -141,6 +142,7 @@ all share the same general options:
 | `--baseline <path>` | Baseline file for `diff` |
 | `--policies <path>` | Governance/cost policies to check (falls back to `./policies.yaml`, then `~/.cloudcosttree/policies.yaml`) |
 | `--usage <path>` | Declare real expected monthly traffic for request/GB/event-billed resources (Lambda, SQS, ...) — see below. Every plan, no AWS account needed |
+| `--price-overrides <path>` | Apply your own negotiated/EDP discount on top of the published catalog — see [Custom price books](#custom-price-books) below. Every plan, no AWS account needed |
 | `--include-governance` | Also show governance-only FinOps findings (naming/tags) alongside real savings |
 | `--with-usage` | (`analyze` only, **Pro**) enrich with real CloudWatch utilization + live Spot pricing — see below |
 | `--stack-name <name>` | (`analyze` only, with `--with-usage`, CloudFormation input only, **Pro**) the deployed stack name, needed to resolve real resource IDs for a CloudFormation template — see below |
@@ -530,6 +532,38 @@ On **Pro**, `--with-usage` (below) goes one step further for Lambda
 specifically: it replaces even a `--usage` file's declared volume with
 what a *real, already-deployed* function's CloudWatch metrics show it
 actually did.
+
+## Custom price books
+
+```
+cloudcosttree ./my-infra.tf --price-overrides discounts.yaml
+```
+
+Available on **every plan** — no AWS account, no hosted service. If your
+org has a negotiated/EDP discount with AWS, declare a flat percentage off
+per resource type (`service`, the same string as a policy's
+`resource_type`, e.g. `ec2`/`rds`/`ebs`), optionally scoped to one region:
+
+```yaml
+version: "1.0"
+overrides:
+  - service: ec2
+    discount_percent: 10
+  - service: rds
+    region: us-east-1
+    discount_percent: 15
+```
+
+A region-specific entry wins over a region-omitted (every-region) one for
+the same service, regardless of file order. No file, or no entry for a
+given resource's type, changes nothing — the catalog's real on-demand rate
+applies exactly as it always has.
+
+This is deliberately an MVP: a flat percentage per service, not a model of
+how a real EDP's discount can vary by purchase type (on-demand vs.
+Reserved Instance vs. Savings Plan) — every discounted figure still starts
+from a real, fetched AWS rate, this is just a multiplier applied on top of
+it.
 
 ## Real Reserved Instance savings
 
@@ -1193,7 +1227,9 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 
 History's 180-day retention (auto-pruned locally, see `pkg/history`) is disk
 hygiene, not a plan limit — it's the same on both tiers. Custom/negotiated
-price books aren't implemented yet on either plan.
+[price books](#custom-price-books) (`--price-overrides`) are available on
+both tiers too — a flat %-discount MVP, not a full purchase-type-aware
+model.
 
 ```
 cloudcosttree license status     # see your current plan and usage
