@@ -64,6 +64,7 @@ full, honest list of what that covers and why.
 - [Usage-aware FinOps — `--with-usage` (Pro)](#usage-aware-finops---with-usage)
 - [What-if simulator](#what-if-simulator)
 - [Policies](#policies)
+- [Local apply guard — `guard` (Pro)](#local-apply-guard-guard)
 - [Cost Score](#cost-score)
 - [History](#history)
 - [Exports](#exports)
@@ -123,6 +124,7 @@ cloudcosttree usage init                                             # scaffold 
 cloudcosttree ci report|check|diff                                   # CI/CD-friendly output (see CI.md)
 cloudcosttree history save|list|compare|delete|export|import         # track cost over time
 cloudcosttree license buy|activate|status                            # CloudCostTree Pro
+cloudcosttree guard -- terraform apply                               # local apply-time policy gate (not the CI Cost Guard workflow)
 ```
 
 Run `cloudcosttree --help` (or `<command> --help`) for the full flag
@@ -958,6 +960,36 @@ unlike a `policies.yaml` violation, which just silently evaluates to
 nothing on Free, passing `--max-monthly-cost` on Free prints an explicit
 note that it wasn't enforced, so the flag never *looks* like it worked when
 it didn't.
+
+## Local apply guard (`guard`)
+
+```
+cloudcosttree guard -- terraform apply
+```
+
+Not the [CI/CD](#cicd) `Cost Guard` GitHub Actions workflow below — that
+gates a pull request; this gates a real `terraform apply` on your own
+machine, at the moment you'd actually run it, for the (common, for this
+project's target audience) case where there's no CI/CD pipeline in the loop
+at all yet. Run from the same directory you'd run `terraform apply` from:
+`guard` runs `terraform plan` itself, checks that exact plan against your
+policies, then applies that *same saved plan* — never a fresh one, so
+nothing can drift between the check and the apply.
+
+Default behavior is warn-only: a blocking policy violation (`action: error`
+or `deny`) prints, but `terraform apply` still runs. `--block` opts into
+actually gating it. This is deliberate — a plan-parsing edge case or a
+false positive blocking a real infrastructure deploy is far more costly
+than one appearing in a report, so blocking is opt-in, never the default:
+
+```
+cloudcosttree guard --block -- terraform apply
+```
+
+Same **CloudCostTree Pro** gate as `policy check` — `guard`'s only value is
+policy enforcement, which is Pro-only on every other command too. The
+wrapped command after `--` must be exactly `terraform apply`; this isn't a
+generic subprocess wrapper.
 
 ## Cost Score
 

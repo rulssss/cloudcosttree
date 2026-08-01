@@ -188,6 +188,13 @@ composite action at the repo root ([`action.yml`](action.yml)):
   job specifically on exit code `2` (blocking violations) while letting
   exit code `1` (warnings only) pass with a visible `::notice::`.
 
+  Not the same thing as the CLI's own `cloudcosttree guard -- terraform
+  apply` (see the main README's "Local apply guard" section) — this
+  workflow gates a pull request on GitHub Actions; `guard` gates a real
+  `terraform apply` locally, at the moment you'd actually run it, for
+  projects that don't have a CI/CD pipeline like this one in the loop yet.
+  Same policy engine, two different trigger points.
+
 ### Using the CloudCostTree Action directly
 
 Both workflows above are just a `uses:` call to the action at this repo's
