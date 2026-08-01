@@ -1051,6 +1051,36 @@ any storage already in use — no hosted backend needed. Not to be confused
 with the `--export <format>[:path]` flag on `list`/`compare`/`save` below,
 which renders a human-readable report instead of copying the raw snapshot.
 
+### Cost delta attribution
+
+`history compare` labels each changed resource's delta with a **cause**,
+where it can tell — a $/mo swing between two snapshots doesn't always mean
+your infrastructure changed:
+
+```
+Changed (1):
+  ~ web [ec2] (price change)          +$4.80/month
+```
+
+- **`config change`** — the resource's instance type itself changed between
+  snapshots.
+- **`price change`** — the instance type is identical, but the AWS price
+  catalog was refreshed between the two `history save` runs (this tool's
+  published catalog updates on its own ~15-day cadence — see
+  [Install](#install)) — the resource didn't change, its rate did.
+- No label at all — the cause can't be determined (a snapshot saved before
+  this attribution existed, or a real change this MVP doesn't fingerprint
+  yet, like `size_gb`/`iops`). Never guessed; an unlabeled delta is exactly
+  as informative as before this feature existed, nothing is silently
+  misattributed.
+
+When the catalog itself changed between the two snapshots being compared, a
+note above the resource list calls that out explicitly, since it affects
+how to read every `price change`-labeled line below it. This is a `config`
+vs. `price` MVP, not full three-way attribution — declared-volume/usage
+changes (a `--usage` file edit, or `--with-usage`'s real measured traffic)
+aren't distinguished from a config change yet.
+
 ### Cost drift alerts in CI
 
 `history compare` can fail the run (exit 1) when total cost *increased*
