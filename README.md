@@ -588,7 +588,10 @@ cloudcosttree analyze ./my-infra.tf --with-usage
 
 A **CloudCostTree Pro**, opt-in flag that calls your own read-only AWS
 credentials (the default credential chain: env vars, a shared profile, SSO,
-or an EC2/ECS/Lambda instance role) to replace static-config guesses with
+or an EC2/ECS/Lambda instance role — independent of any `profile` argument
+on the input `.tf` file's own `provider "aws"` block, which only Terraform
+itself reads; export `AWS_PROFILE=<name>` to point this flag at a named
+profile) to replace static-config guesses with
 real numbers (and confirm facts no static config can know at all, like an
 EBS volume's real attachment status), for resources this tool can resolve a
 real AWS resource ID for — a `.tfstate` file, a `terraform show -json` plan
