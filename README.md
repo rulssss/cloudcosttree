@@ -696,6 +696,20 @@ as before (a printed note, never a failure).
   repriced dollar delta, disclosing the one real tradeoff it can't
   quantify: Lambda's CPU allocation scales with `memory_size`, so Duration
   should be re-checked after lowering it.
+- **Fleet size outlier** — compares a plan's EC2/RDS resource against every
+  other instance already running in that same AWS account/region
+  (`ec2:DescribeInstances`/`rds:DescribeDBInstances`, grouped by instance
+  family the same way `ruleOldGenerationInstance`/`ruleGravitonMigration`
+  parse one), and flags it only when it's a genuine outlier against a real
+  sample of at least 2 comparable instances: a different family than
+  whichever one is most common in the fleet, or the largest size within a
+  family it does share. No dollar figure — this tool has no way to know
+  whether the new resource's size is a genuine business need, so it's a
+  governance/consistency nudge, not a quantified saving, the same
+  informational posture as `ruleEC2FleetWithoutASG`. Silent whenever there's
+  no comparable fleet at all, or fewer than 2 other instances to compare
+  against — this never guesses from a tiny sample. EC2 and RDS only for
+  now; RDS Cluster/Aurora and ElastiCache aren't in scope yet.
 
 ### Multi-region and multi-account (`--accounts`)
 
@@ -732,12 +746,17 @@ principal to assume it.
 
 Needs `cloudwatch:GetMetricData`, `ec2:DescribeSpotPriceHistory`,
 `ec2:DescribeVolumes`, `ec2:DescribeSnapshots`, `ec2:DescribeAddresses`,
-`ec2:DescribeReservedInstances`,
+`ec2:DescribeReservedInstances`, `ec2:DescribeInstances`,
+`rds:DescribeDBInstances`,
 `elasticloadbalancing:DescribeTargetGroups`/`DescribeTargetHealth`,
 `logs:StartQuery`/`logs:GetQueryResults`,
 `autoscaling:DescribeAutoScalingGroups`, and — with `--stack-name`,
 CloudFormation input only — `cloudformation:DescribeStackResources` IAM
-permissions. A
+permissions. `ec2:DescribeInstances`/`rds:DescribeDBInstances` are the one
+pair above that scan the whole account/region rather than looking up
+specific resources by ID (every other call here targets IDs this tool
+already resolved) — that's what the fleet size outlier check above needs to
+see what else is already running. A
 missing-credentials or missing-permission problem is
 reported with an actionable message (not a raw SDK stack trace) and never
 fails the run — the rest of the report still renders normally without the
