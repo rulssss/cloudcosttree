@@ -1220,6 +1220,13 @@ uniquely-named folder next to the original input, never the original
 itself; see [What-if simulator](#what-if-simulator) for exactly which
 input formats and attribute types this supports.
 
+The `cloudcosttree.withUsage` setting is the extension's opt-in bridge to
+[`--with-usage`](#usage-aware-finops---with-usage) (Pro) — turning it on
+shows a one-time confirmation dialog (this is the one feature that calls
+your own AWS account), then enriches Analyze/Compare the same way the CLI
+flag does; see the extension's own README for the consent/credential
+details.
+
 ## Free vs Pro
 
 Free is a generous, unlimited cost-visibility tool for local use — Pro adds
@@ -1295,6 +1302,7 @@ automation and fetched by end users as a plain public file — the only
 CloudCostTree capability that needs an AWS account of its own is
 `--with-usage`, and that account is always the end user's, never this
 project's.
+
 
 ## License
 
