@@ -24,7 +24,7 @@ my-infra.tf ($842.13/mo)
 
 CloudCostTree targets small/medium projects that want a simpler, cheaper
 pricing model and a lightweight, single-binary tool for cost visibility —
-today that means AWS, where it prices ~84 resource types with real,
+today that means AWS, where it prices ~85 resource types with real,
 fetched-from-AWS rates (see [Supported AWS
 resources](#supported-aws-resources) below).
 
@@ -323,7 +323,29 @@ new pricing wiring needed). AWS Lambda Provisioned Concurrency (an assumed
 128MB baseline memory — the real memory_size lives on the
 `aws_lambda_function` this config resource references, a cross-reference
 this tool's per-resource parsers can't make — times the real
-provisioned_concurrent_executions count).
+provisioned_concurrent_executions count). Amazon Bedrock Provisioned
+Throughput (`aws_bedrock_provisioned_model_throughput`'s model_units — a
+real, already-declared attribute needing no assumed floor, same pattern as
+Redshift Serverless above — times a per-model-unit-hour rate). model_arn is
+resolved against a hand-maintained model-ID lookup table (Terraform/Pulumi
+only — no CloudFormation resource for this exists at all), since AWS's price
+catalog indexes this by human-readable model name rather than the technical
+model ID Terraform/Pulumi expose, and a Provisioned Throughput purchase
+requires a context-window-qualified model ID (e.g.
+`amazon.nova-lite-v1:0:300k`) that this tool strips back to the base model
+before the lookup, since price doesn't vary by context window. Confirmed
+against AWS's own published list of Provisioned-Throughput-eligible models
+and the real bulk offer file: only Amazon's own Nova/Titan models have a
+published rate — Anthropic Claude, Meta Llama, and Cohere models are
+purchasable via the same API but have no corresponding price in AWS's Price
+List, consistent with those needing a negotiated/quote-only rate rather than
+a self-service one, so this tool prices only what AWS actually publishes. A
+`model_arn` pointing at a custom/fine-tuned or imported model isn't resolved
+either (`bedrock_provisioned_throughput_unresolved`, same honest-gap posture
+as `autoscaling_group_unresolved`): resolving which base model it was
+fine-tuned from would need a cross-reference this project deliberately
+limits to two existing cases, `aws_autoscaling_group`/`aws_sagemaker_endpoint`
+below.
 
 EC2 Auto Scaling groups (`aws_autoscaling_group`) are also priced — the
 first of two resources this tool cross-references another declared
