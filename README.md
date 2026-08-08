@@ -172,7 +172,14 @@ Auto-detected regardless of file extension:
   only format that can carry `resource_id`/`arn` by hand for `--with-usage`
   testing without a real Terraform state.
 - Terraform (`.tf`, evaluated via a live `terraform plan` against whatever
-  backend the config uses).
+  backend the config uses). A real `provider "aws" { ... }` block means
+  Terraform itself needs valid AWS credentials to plan at all (an STS
+  `GetCallerIdentity` call, independent of this tool's own `--with-usage`
+  flag/license tier) — for a credential-free cost preview with no AWS
+  account involved, point the provider at throwaway values instead:
+  `access_key`/`secret_key = "demo"` plus `skip_credentials_validation`/
+  `skip_requesting_account_id`/`skip_region_validation = true`. A `.tfstate`
+  file (below) sidesteps this entirely, needing no provider or live plan.
 - A raw Terraform state file (`.tfstate`) — no `terraform` binary or live
   plan needed, since the state is already a snapshot of deployed values.
 - A CloudFormation template (`--params` for parameter overrides).
