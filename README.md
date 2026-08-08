@@ -334,12 +334,17 @@ model ID Terraform/Pulumi expose, and a Provisioned Throughput purchase
 requires a context-window-qualified model ID (e.g.
 `amazon.nova-lite-v1:0:300k`) that this tool strips back to the base model
 before the lookup, since price doesn't vary by context window. Confirmed
-against AWS's own published list of Provisioned-Throughput-eligible models
-and the real bulk offer file: only Amazon's own Nova/Titan models have a
-published rate — Anthropic Claude, Meta Llama, and Cohere models are
-purchasable via the same API but have no corresponding price in AWS's Price
-List, consistent with those needing a negotiated/quote-only rate rather than
-a self-service one, so this tool prices only what AWS actually publishes. A
+region by region against AWS's own published list of
+Provisioned-Throughput-eligible models and the real bulk offer file: Amazon's
+own Nova/Titan models and Meta Llama 3.1/3.2 have a published rate, each
+genuinely region-restricted (Nova/Titan mostly `us-east-1` and a handful of
+others, Llama `us-west-2` only — a Llama resource still parses and resolves
+its model everywhere, it just only prices in the one region AWS actually
+sells it in). Anthropic Claude and Cohere models are purchasable via the
+same API but have no corresponding price in AWS's Price List in any region
+checked, consistent with those needing a negotiated/quote-only rate rather
+than a self-service one, so this tool prices only what AWS actually
+publishes. A
 `model_arn` pointing at a custom/fine-tuned or imported model isn't resolved
 either (`bedrock_provisioned_throughput_unresolved`, same honest-gap posture
 as `autoscaling_group_unresolved`): resolving which base model it was
@@ -1327,7 +1332,6 @@ automation and fetched by end users as a plain public file — the only
 CloudCostTree capability that needs an AWS account of its own is
 `--with-usage`, and that account is always the end user's, never this
 project's.
-
 
 ## License
 
