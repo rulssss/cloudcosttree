@@ -235,10 +235,11 @@ Auto-detected regardless of file extension:
 Priced natively (own `resource_hourly`/dimension entry, not a heuristic
 fallback): EC2 instances (with root EBS volume, OS multiplier), RDS
 instances and RDS Cluster/Aurora (Multi-AZ, provisioned IOPS, backup
-retention, including separate Aurora writer/reader instances — Aurora
-Serverless v2's `db.serverless` instance class is priced at an assumed 0.5
-ACU floor, since its real min/max scaling range lives on a different
-resource this tool can't cross-reference at analyze time), standalone
+retention, including separate Aurora writer/reader instances, and Aurora
+Serverless v2's `db.serverless` instance class priced against its real min
+ACU — cross-referenced from the owning `aws_rds_cluster`'s
+`serverlessv2_scaling_configuration` for Terraform input, falling back to an
+assumed 0.5 ACU floor for CloudFormation/Pulumi input), standalone
 EBS volumes (gp2/gp3/io1/io2, provisioned IOPS and throughput, snapshots),
 S3 buckets, EFS file systems, DynamoDB tables (provisioned RCU/WCU with
 table-class multiplier, or on-demand), NAT Gateway (fixed rate + data
@@ -262,18 +263,14 @@ bandwidth), Amazon ECR (repository storage), Amazon Managed Workflows for
 Apache Airflow (MWAA, priced as the sum of an environment's
 Environment/Scheduler/WebServer/Worker components), AWS Certificate
 Manager Private CA (General-Purpose mode), FSx for Lustre/OpenZFS/NetApp
-ONTAP (Persistent/Single-AZ SSD baseline — the Scratch deployment type
-remains unmapped), Kinesis Data Analytics v2 (priced at the single-KPU
+ONTAP (Persistent/Single-AZ SSD baseline), Kinesis Data Analytics v2 (priced at the single-KPU
 minimum every application runs at least, same "documented floor" posture as
 Lambda/SQS/SNS below), AWS App Runner (priced at an assumed 1 vCPU/2GB
 baseline configuration, same reasoning as ECS/Fargate below), Amazon
 ECR Public (repository storage), AWS Systems Manager Parameter Store
-(Advanced tier only — Standard and Intelligent-Tiering parameters under 4KB
-are free, so they're deliberately left unmapped), Amazon Timestream for
+(Advanced tier), Amazon Timestream for
 InfluxDB (priced per DB instance type), Amazon Kendra (index base
-capacity fee, Developer or Enterprise edition — the GenAI Enterprise
-edition isn't mapped since Terraform doesn't yet expose it as an edition
-value), Amazon EMR (master node + core instance fleet, each node priced
+capacity fee, Developer or Enterprise edition), Amazon EMR (master node + core instance fleet, each node priced
 at its EC2 rate plus EMR's own per-instance-hour markup fee — task instance
 groups and the instance-fleet configuration API aren't modeled, and a
 multi-master HA config's master group is still priced as a single node),
@@ -283,8 +280,9 @@ engine changes the price for the same node type), AWS Managed Blockchain
 Formation/Pulumi support couldn't confidently map a dedicated node
 resource for it), Amazon GameLift (fleet EC2 instance type, billed under
 GameLift's own service code rather than a markup on EC2 the way EMR's is),
-Amazon Neptune Serverless (an assumed 1 NCU floor, same architecture as
-Aurora Serverless v2 above), Amazon MSK Connect (a flat per-MCU-hour rate
+Amazon Neptune Serverless (an assumed 1 NCU floor — the same min/max-range-
+on-a-different-resource gap Aurora Serverless v2 has above, just without a
+cross-reference to resolve it), Amazon MSK Connect (a flat per-MCU-hour rate
 times the connector's declared mcu_count x worker_count — only when
 configured with fixed/provisioned capacity, not the autoscaling capacity
 mode), Amazon DocumentDB Elastic Clusters (a flat per-vCPU-hour rate times
@@ -304,18 +302,12 @@ unlike Aurora/Neptune Serverless above this needs no assumed floor at all
 pipeline's min_units, another real declared attribute needing no assumed
 floor, times the same per-OCU rate as OpenSearch Serverless above —
 confirmed identical across both services), and Amazon AppStream 2.0 (fleet
-instance type x compute_capacity.desired_instances — priced at the
-standard single-session Windows Fleet rate; Linux/multi-session/BYOL/
-Elastic fleet configurations aren't fetched), and AWS Storage Gateway's FSx
-File Gateway type only (`gateway_type = "FILE_FSX_SMB"`) — the only Storage
-Gateway type with a fixed hourly fee of its own; S3 File Gateway, Volume
-Gateway, and Tape Gateway genuinely have no fixed fee (billed purely for
-underlying storage/data transfer), so those `gateway_type` values are
-deliberately left unmapped rather than a gap. EC2 Dedicated Hosts are also
-priced (per instance_family — a whole host is billed by family, not
-individual instance size; hosts declared via the mutually exclusive
-instance_type attribute instead aren't mapped, since the fetched rate has
-no per-size breakdown to look them up against). Amazon Neptune Analytics
+instance type x compute_capacity.desired_instances), and AWS Storage
+Gateway's FSx File Gateway type (`gateway_type = "FILE_FSX_SMB"`). EC2
+Dedicated Hosts are also priced (per instance_family — a whole host is
+billed by family, not individual instance size — or, for a host declared via
+the mutually exclusive instance_type attribute instead, the same real rate
+derived from that attribute's family prefix). Amazon Neptune Analytics
 (a graph's provisioned_memory, in NCU — another real, already-declared
 attribute needing no assumed floor, times a confirmed-flat $0.03/NCU-hr
 rate). AWS MSK Serverless (a flat $0.75/hr per-cluster fee; ingress/egress/
@@ -356,20 +348,23 @@ publishes. A
 either (`bedrock_provisioned_throughput_unresolved`, same honest-gap posture
 as `autoscaling_group_unresolved`): resolving which base model it was
 fine-tuned from would need a cross-reference this project deliberately
-limits to two existing cases, `aws_autoscaling_group`/`aws_sagemaker_endpoint`
-below.
+limits to its three existing cases, `aws_autoscaling_group`/
+`aws_sagemaker_endpoint`/Aurora Serverless v2's cluster join, below and
+above.
 
 EC2 Auto Scaling groups (`aws_autoscaling_group`) are also priced — the
-first of two resources this tool cross-references another declared
-resource for (see `aws_sagemaker_endpoint` below for the second). An
+first of three resources this tool cross-references another declared
+resource for (see `aws_sagemaker_endpoint` below for the second, and Aurora
+Serverless v2 above for the third). An
 ASG's own attributes never carry an instance_type: that lives entirely on
 the separate `aws_launch_template`/`aws_launch_configuration` resource it
 references (by real, post-apply ID for launch templates; by name for the
 older launch configuration), so this parser does a single pre-pass over
 every declared resource to resolve that reference before pricing — an
 exception to this tool's otherwise strictly single-resource,
-no-cross-referencing design (see the Aurora Serverless v2 gap above for
-where that design is *not* bent). Falls back to `max_size`/`min_size` when
+no-cross-referencing design (see Amazon Neptune Serverless below for a case
+where that design is *not* bent — its identical min/max NCU gap stays
+unresolved). Falls back to `max_size`/`min_size` when
 `desired_capacity` isn't set. An ASG using `mixed_instances_policy`
 (multiple possible instance types with weighted overrides) isn't resolved
 from declared config alone — there's no way to know which override
@@ -400,8 +395,9 @@ exposes. Reuses the exact same fetched rate as ECS/Fargate below (both
 services bill the same underlying Fargate compute at the same per-vCPU/
 per-GB price), not App Runner's different compute-unit rate.
 
-`aws_sagemaker_endpoint` (real-time inference) is priced too, the second
-and (by design) last cross-reference this tool's parsers make: its
+`aws_sagemaker_endpoint` (real-time inference) is priced too, the second of
+three cross-references this tool's parsers make (see Aurora Serverless v2
+above for the third): its
 `instance_type` lives on a separate
 `aws_sagemaker_endpoint_configuration` resource, referenced by name via
 `endpoint_config_name` — resolved by the same pre-pass-over-every-resource
@@ -414,20 +410,6 @@ above. Standalone Elastic IPs (`aws_eip`/`AWS::EC2::EIP`/
 `aws:ec2/eip:Eip`) are also priced (public IPv4 addresses have billed the
 same whether in use or not since Feb 2024, so an EIP resource is priced
 identically regardless of association status).
-
-One documented gap remains, deliberate:
-- Amazon Managed Grafana isn't mapped at all: it's 100% per-user-month
-  licensing with no fixed workspace-level fee to price (the same "no fixed
-  capacity to represent" reasoning as Cognito/Step Functions/AppSync — see
-  below).
-
-`aws_globalaccelerator_accelerator` is mapped (visible in the tree, counted
-in the resource total) but always prices at $0: AWS Global Accelerator's
-flat per-accelerator hourly fee isn't exposed anywhere in the AWS Price
-List API (confirmed against the real bulk offer file — every entry is a
-region-pair data transfer dimension), so there's no way to fetch a real
-number for it, unlike every other $0 case below which is just "not mapped
-yet".
 
 Any other AWS resource type — one this tool hasn't mapped a price for at
 all — still shows up in the tree and counts toward the resource total,
