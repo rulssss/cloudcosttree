@@ -123,7 +123,7 @@ cloudcosttree update-prices [options]                                # refresh t
 cloudcosttree policy init|check|list|validate                        # governance/cost policies
 cloudcosttree usage init                                             # scaffold a --usage volume-override file
 cloudcosttree ci report|check|diff                                   # CI/CD-friendly output (see CI.md)
-cloudcosttree history save|list|compare|delete|export|import         # track cost over time
+cloudcosttree history save|list|trend|compare|delete|export|import   # track cost over time
 cloudcosttree license buy|activate|status                            # CloudCostTree Pro
 cloudcosttree guard -- terraform apply                               # local apply-time policy gate (not the CI Cost Guard workflow)
 ```
@@ -280,9 +280,10 @@ engine changes the price for the same node type), AWS Managed Blockchain
 Formation/Pulumi support couldn't confidently map a dedicated node
 resource for it), Amazon GameLift (fleet EC2 instance type, billed under
 GameLift's own service code rather than a markup on EC2 the way EMR's is),
-Amazon Neptune Serverless (an assumed 1 NCU floor — the same min/max-range-
-on-a-different-resource gap Aurora Serverless v2 has above, just without a
-cross-reference to resolve it), Amazon MSK Connect (a flat per-MCU-hour rate
+Amazon Neptune Serverless (priced against its real min NCU — cross-referenced
+from the owning `aws_neptune_cluster`'s `serverlessv2_scaling_configuration`
+for Terraform input, same mechanism and fallback-to-an-assumed-1-NCU-floor
+posture as Aurora Serverless v2 above), Amazon MSK Connect (a flat per-MCU-hour rate
 times the connector's declared mcu_count x worker_count — only when
 configured with fixed/provisioned capacity, not the autoscaling capacity
 mode), Amazon DocumentDB Elastic Clusters (a flat per-vCPU-hour rate times
@@ -348,23 +349,25 @@ publishes. A
 either (`bedrock_provisioned_throughput_unresolved`, same honest-gap posture
 as `autoscaling_group_unresolved`): resolving which base model it was
 fine-tuned from would need a cross-reference this project deliberately
-limits to its three existing cases, `aws_autoscaling_group`/
-`aws_sagemaker_endpoint`/Aurora Serverless v2's cluster join, below and
-above.
+limits to its four existing cases, `aws_autoscaling_group`/
+`aws_sagemaker_endpoint`/Aurora Serverless v2's cluster join/Neptune
+Serverless's cluster join, below and above.
 
 EC2 Auto Scaling groups (`aws_autoscaling_group`) are also priced — the
-first of three resources this tool cross-references another declared
-resource for (see `aws_sagemaker_endpoint` below for the second, and Aurora
-Serverless v2 above for the third). An
+first of four resources this tool cross-references another declared
+resource for (see `aws_sagemaker_endpoint` below for the second, Aurora
+Serverless v2 above for the third, and Amazon Neptune Serverless above for
+the fourth). An
 ASG's own attributes never carry an instance_type: that lives entirely on
 the separate `aws_launch_template`/`aws_launch_configuration` resource it
 references (by real, post-apply ID for launch templates; by name for the
 older launch configuration), so this parser does a single pre-pass over
 every declared resource to resolve that reference before pricing — an
 exception to this tool's otherwise strictly single-resource,
-no-cross-referencing design (see Amazon Neptune Serverless below for a case
-where that design is *not* bent — its identical min/max NCU gap stays
-unresolved). Falls back to `max_size`/`min_size` when
+no-cross-referencing design (see Amazon Bedrock Provisioned Throughput
+below for a case where that design is *not* bent — a `model_arn` pointing
+at a custom/fine-tuned model stays unresolved rather than adding a fifth
+cross-reference). Falls back to `max_size`/`min_size` when
 `desired_capacity` isn't set. An ASG using `mixed_instances_policy`
 (multiple possible instance types with weighted overrides) isn't resolved
 from declared config alone — there's no way to know which override
@@ -396,8 +399,8 @@ services bill the same underlying Fargate compute at the same per-vCPU/
 per-GB price), not App Runner's different compute-unit rate.
 
 `aws_sagemaker_endpoint` (real-time inference) is priced too, the second of
-three cross-references this tool's parsers make (see Aurora Serverless v2
-above for the third): its
+four cross-references this tool's parsers make (see Aurora Serverless v2
+and Amazon Neptune Serverless above for the third and fourth): its
 `instance_type` lives on a separate
 `aws_sagemaker_endpoint_configuration` resource, referenced by name via
 `endpoint_config_name` — resolved by the same pre-pass-over-every-resource
@@ -1106,6 +1109,7 @@ Cost Score:         78/C -> 85/B (+7)
 ```
 cloudcosttree history save prod-2026-07 ./my-infra.tf
 cloudcosttree history list
+cloudcosttree history trend [-last <n>]
 cloudcosttree history compare <name-or-id> <name-or-id>
 cloudcosttree history delete <name-or-id>
 cloudcosttree history export <name> <path>
@@ -1117,11 +1121,24 @@ cost — and [Cost Score](#cost-score) — over time the same way `diff`
 compares two files. 180-day retention, auto-pruned — disk hygiene, not a
 plan limit; identical on Free and Pro.
 
+While `compare` diffs two snapshots, `trend` reads every saved snapshot (or
+just the last N, via `-last`) and prints an ASCII sparkline of total
+monthly cost and Cost Score across all of them, so you can see the shape of
+a stack's cost history at a glance instead of comparing pairs by hand:
+
+```
+$ cloudcosttree history trend
+▁▂▂▄█  $850.00/month -> $1,340.00/month  (2026-06-01 -> 2026-08-01)
+Delta:       +$490.00/month (+57.6%)   Range: $850.00 - $1,340.00/month
+Cost Score:  █▆▅▃▁  92/A -> 68/D
+```
+
 `history export`/`history import` copy that same snapshot JSON file to/from
 an arbitrary path, so a snapshot can be shared with a team via git, S3, or
 any storage already in use — no hosted backend needed. Not to be confused
-with the `--export <format>[:path]` flag on `list`/`compare`/`save` below,
-which renders a human-readable report instead of copying the raw snapshot.
+with the `--export <format>[:path]` flag on `list`/`compare`/`save`/`trend`
+below, which renders a human-readable report instead of copying the raw
+snapshot.
 
 ### Cost delta attribution
 
@@ -1257,7 +1274,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Analyses (tree/analyze/diff) | Unlimited | Unlimited |
 | What-if simulations | Unlimited | Unlimited |
 | Exports (md/csv/json/html/pr-comment/slack) | Unlimited | Unlimited |
-| History (`history save`/`list`/`compare`) | Unlimited, 180-day retention | Unlimited, 180-day retention |
+| History (`history save`/`list`/`trend`/`compare`) | Unlimited, 180-day retention | Unlimited, 180-day retention |
 | Cost Score (health grade rolling up FinOps + policy findings) | Included | Included |
 | FinOps recommendations shown | Top 3 by impact | Top 15 by impact |
 | Real usage volume for request/GB/event-billed resources (`--usage` file: Lambda, SQS, SNS, ...) | Included | Included |
@@ -1321,6 +1338,7 @@ automation and fetched by end users as a plain public file — the only
 CloudCostTree capability that needs an AWS account of its own is
 `--with-usage`, and that account is always the end user's, never this
 project's.
+
 
 ## License
 
