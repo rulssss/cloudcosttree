@@ -8,6 +8,8 @@ governance/cost policy checks, and a what-if simulator for testing changes
 before they hit your cloud bill. AWS-only by design, CLI-only by design: no
 multi-cloud, no hosted dashboard, no account required to see a cost tree.
 
+![cloudcosttree running against a real Terraform file, showing the cost tree, Cost Score, and FinOps recommendations](media/demo.gif)
+
 ```
 $ cloudcosttree ./my-infra.tf
 
