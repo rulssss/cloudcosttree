@@ -8,8 +8,6 @@ governance/cost policy checks, and a what-if simulator for testing changes
 before they hit your cloud bill. AWS-only by design, CLI-only by design: no
 multi-cloud, no hosted dashboard, no account required to see a cost tree.
 
-![cloudcosttree running against a real Terraform file, showing the cost tree, Cost Score, and FinOps recommendations](media/demo.gif)
-
 ```
 $ cloudcosttree ./my-infra.tf
 
@@ -98,6 +96,27 @@ on macOS/Linux, `%LOCALAPPDATA%\cloudcosttree\bin` on Windows) — no admin/
 sudo needed — and adds it to your `PATH` automatically if it isn't already
 there. To install by hand instead, grab a binary directly from
 [cloudcosttree releases](https://github.com/rulssss/cloudcosttree/releases).
+
+Also available via a real package manager, same binary either way:
+
+```sh
+# Homebrew (macOS/Linux)
+brew install rulssss/cloudcosttree/cloudcosttree
+```
+
+```sh
+# apt (Debian/Ubuntu, amd64/arm64) -- one-time repo setup, then a normal apt install
+curl -fsSL https://rulssss.github.io/cloudcosttree-apt/cloudcosttree-archive-keyring.gpg \
+  | sudo tee /etc/apt/keyrings/cloudcosttree-archive-keyring.gpg > /dev/null
+echo "deb [signed-by=/etc/apt/keyrings/cloudcosttree-archive-keyring.gpg] https://rulssss.github.io/cloudcosttree-apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/cloudcosttree.list
+sudo apt update && sudo apt install cloudcosttree
+```
+
+```sh
+# pip (any OS with Python) -- a thin wrapper, downloads the same real binary on first run
+pip install cloudcosttree
+```
 
 The CLI is fully self-contained: `data/prices.json` (the bundled price
 catalog) travels with it, so a plain `analyze`/`tree`/`diff` run needs no
