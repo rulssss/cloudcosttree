@@ -229,6 +229,34 @@ Auto-detected regardless of file extension:
   across 4 stacks (dev, staging, and two prod regions), with a real
   multi-level `import:` hierarchy (a per-tier sizing catalog shared across
   stacks, plus per-region mixins).
+- A rendered Kubernetes manifest — run `helm template ...` or `kustomize
+  build ...` yourself, save the output to a file (or pipe it in), and point
+  this tool at that — the same trust boundary CDK input already
+  establishes above ("render it yourself, point this tool at the static
+  result"): no `helm`/`kustomize` binary invocation happens inside this
+  tool at all. AWS-only, not a multi-cloud move: every `Deployment`/
+  `StatefulSet` document's real declared `resources.requests` (summed
+  across every container, init containers excluded) is priced against real
+  AWS Fargate per-vCPU/per-GB rates — not the fixed 0.25vCPU/0.5GB assumed
+  baseline `ecs_service`/`ecs_task_definition`/`eks_fargate_profile` use
+  elsewhere in this table, since the real requested size is right there in
+  the manifest. A declared request is rounded up to the nearest size AWS
+  Fargate actually bills (its own published vCPU/memory combination table,
+  never scaled linearly against an arbitrary value AWS would never accept).
+  Every other kind (`Service`, `ConfigMap`, `Ingress`, `DaemonSet`, `Job`,
+  `CronJob`, ...) is parsed and skipped, not shown at $0: a `Service`/
+  `ConfigMap` genuinely has no separate compute cost of its own (same as a
+  VPC or security group), while `DaemonSet`'s real pod count depends on
+  live cluster node count (unknowable from a static manifest) and `Job`/
+  `CronJob` have no steady "replicas" concept at all — real, disclosed
+  gaps, not silently dropped resources. Pods scheduled onto EKS managed
+  node group EC2 capacity instead of Fargate aren't priced either: bin-
+  packing pods onto nodes is a real scheduling decision (affinity, taints)
+  this tool has no way to reproduce without guessing, so it's out of scope
+  entirely rather than a guessed approximation. Grouped by namespace
+  (`metadata.namespace`, falling back to `default`) the same way
+  Terragrunt/Atmos group by unit/stack. **Free** — no Pro gate, same tier
+  as Terraform/Terragrunt.
 
 ## Supported AWS resources
 
@@ -396,7 +424,15 @@ Fargate by namespace/label selector; the real per-pod vCPU/memory request
 lives in the Kubernetes pod spec, a data source no format this tool parses
 exposes. Reuses the exact same fetched rate as ECS/Fargate below (both
 services bill the same underlying Fargate compute at the same per-vCPU/
-per-GB price), not App Runner's different compute-unit rate.
+per-GB price), not App Runner's different compute-unit rate. That gap is
+closed for a **rendered Kubernetes manifest** input specifically (see
+[Input formats](#input-formats) above): a `k8s_workload` resource (a
+`Deployment`/`StatefulSet` document, priced from its real declared
+`resources.requests`) uses a separate pair of real per-vCPU/per-GB Fargate
+rates, not this assumed baseline — the baseline above remains exactly as
+accurate as it always was for `aws_eks_fargate_profile` itself (a
+Terraform/CloudFormation/Pulumi resource never carries a pod spec), this
+is purely additive for the new input format.
 
 `aws_sagemaker_endpoint` (real-time inference) is priced too, the second of
 four cross-references this tool's parsers make (see Aurora Serverless v2
@@ -706,6 +742,23 @@ as before (a printed note, never a failure).
   monthly cost — AWS bills a public IPv4 address the same whether it's
   attached to anything or not (since Feb 2024), so an unassociated one is
   pure waste, not "used to be free."
+- **Orphaned-on-destroy warnings** — when the input is a live Terraform
+  plan that destroys an EC2 instance, calls `ec2:DescribeVolumes`/
+  `DescribeAddresses` (filtered by the doomed instance's real ID — a
+  discovery scan, not an ID lookup, since a dependent left outside this
+  Terraform config was never going to have a resource ID this tool already
+  knows) to check for an EBS volume/Elastic IP that's genuinely still
+  attached/associated to it right now, and isn't itself being destroyed in
+  the same plan. Unlike the confirmed-orphan checks above (which catch a
+  dependent *already* unattached), this is a preview: the dependent is
+  still in use today, but `apply`-ing this exact plan would silently leave
+  it behind, unattached, still billing — caught before that happens instead
+  of on the next `--with-usage` run after the fact. Needs no new IAM
+  permission beyond `ec2:DescribeVolumes`/`DescribeAddresses`, already
+  required above. `.tfstate`, CloudFormation, Pulumi, and this tool's own
+  YAML/JSON schema have no "pending change" concept at all (they describe
+  what exists, not what a plan is about to do), so this check only ever
+  runs for a live Terraform plan.
 - **Lambda memory over-provisioning** — CloudWatch Metrics has no
   `MemoryUtilization` metric for Lambda at all (unlike EC2/RDS
   `CPUUtilization`), so this queries CloudWatch Logs Insights
@@ -732,6 +785,25 @@ as before (a printed note, never a failure).
   no comparable fleet at all, or fewer than 2 other instances to compare
   against — this never guesses from a tiny sample. EC2 and RDS only for
   now; RDS Cluster/Aurora and ElastiCache aren't in scope yet.
+- **Reserved Instance coverage gap** — calls `ec2:DescribeReservedInstances`/
+  `rds:DescribeReservedDBInstances` (both already required above/free —
+  unlike a hypothetical future Savings-Plans version of this check, which
+  would need AWS Cost Explorer's API, billed per call; this one adds no AWS
+  bill of its own) and compares real held Reserved Instance counts against
+  every steady-state (no autoscaling, default 24/7 hours — the same gate
+  `ruleReservedCapacityCandidate` uses) EC2/RDS instance type/class actually
+  declared here. When declared count exceeds held RI count, flags the
+  uncovered gap with a real repriced dollar figure: what buying enough more
+  1-year no-upfront RIs to cover the rest would save. Unlike
+  `ruleReservedCapacityCandidate` above (which only ever asks "would an RI
+  help, hypothetically," blind to what the account already owns), this is
+  the account's real inventory, so a team that's already fully RI-covered
+  for a given type sees nothing here instead of a repeated nudge. Inherits
+  one blind spot from the underlying fetch: an RI's OS/product-description
+  and region-vs-availability-zone scope aren't captured, so a Windows RI
+  and a Linux RI of the same instance type (or an AZ-pinned RI) are folded
+  together as undifferentiated coverage for that type — a real, disclosed
+  approximation, not a guess invented by this check.
 
 ### Multi-region and multi-account (`--accounts`)
 
@@ -769,7 +841,7 @@ principal to assume it.
 Needs `cloudwatch:GetMetricData`, `ec2:DescribeSpotPriceHistory`,
 `ec2:DescribeVolumes`, `ec2:DescribeSnapshots`, `ec2:DescribeAddresses`,
 `ec2:DescribeReservedInstances`, `ec2:DescribeInstances`,
-`rds:DescribeDBInstances`,
+`rds:DescribeDBInstances`, `rds:DescribeReservedDBInstances`,
 `elasticloadbalancing:DescribeTargetGroups`/`DescribeTargetHealth`,
 `logs:StartQuery`/`logs:GetQueryResults`,
 `autoscaling:DescribeAutoScalingGroups`, and — with `--stack-name`,
@@ -1338,7 +1410,6 @@ automation and fetched by end users as a plain public file — the only
 CloudCostTree capability that needs an AWS account of its own is
 `--with-usage`, and that account is always the end user's, never this
 project's.
-
 
 ## License
 
