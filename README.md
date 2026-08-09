@@ -64,6 +64,7 @@ full, honest list of what that covers and why.
 - [Real Reserved Instance savings (Pro)](#real-reserved-instance-savings)
 - [Usage-aware FinOps — `--with-usage` (Pro)](#usage-aware-finops---with-usage)
 - [What-if simulator](#what-if-simulator)
+- [Optimize — `--optimize`](#optimize)
 - [Policies](#policies)
 - [Local apply guard — `guard` (Pro)](#local-apply-guard-guard)
 - [Cost Score](#cost-score)
@@ -168,6 +169,7 @@ all share the same general options:
 | `--with-usage` | (`analyze` only, **Pro**) enrich with real CloudWatch utilization + live Spot pricing — see below |
 | `--stack-name <name>` | (`analyze` only, with `--with-usage`, CloudFormation input only, **Pro**) the deployed stack name, needed to resolve real resource IDs for a CloudFormation template — see below |
 | `--scenario <path>` | (`analyze` only) Simulate changes to several resources at once from a YAML file — see [What-if simulator](#what-if-simulator) below |
+| `--optimize` | (`analyze` only) Auto-build and simulate a what-if scenario from the FinOps recommendations already shown, applying only the ones safe to apply mechanically — see [Optimize](#optimize) below |
 | `--write-changes <dir>` | (`analyze` only, **Pro**) Write a what-if simulation's result to a new file/directory, never the original — see [What-if simulator](#what-if-simulator) below |
 | `--export <format>[:path]` | Write a report in `md`/`csv`/`json`/`html`/`pr-comment`/`slack` (omit `:path` to print to stdout; a `slack:https://...` webhook URL posts directly instead) |
 
@@ -1031,6 +1033,71 @@ On Free, `--write-changes` is accepted but writes nothing: the report
 renders exactly as it would without the flag, plus an explicit upgrade
 note.
 
+## Optimize
+
+```
+cloudcosttree analyze ./my-infra.tf --optimize
+```
+
+Every dollar figure in [FinOps recommendations](#finops-recommendations)
+above is computed by re-pricing the resource with one specific attribute
+changed — `--optimize` closes the loop between "here's a recommendation"
+and "here's the change applied": it auto-builds a what-if scenario from the
+FinOps recommendations the report is *already showing* (the same tier-capped
+list — top 3 Free, top 15 Pro), keeps only the ones safe to apply
+mechanically, and runs it through the exact same simulation engine
+`--scenario` uses — same combined before/after report, same
+`--write-changes` to materialize it to a new file/directory. Nothing new to
+learn: `--optimize` is sugar for a `--scenario` file this tool would have
+written for you.
+
+"Safe to apply mechanically" means a same-resource attribute change with no
+architecture/availability trade-off to weigh, or a deletion AWS itself
+already confirmed is unused:
+
+- **Applied automatically**: gp2 → gp3 (EBS and RDS/RDS Cluster storage),
+  provisioned IOPS (io1/io2) → gp3, previous-generation instance type →
+  current generation, RDS backup retention capped at 30 days, DynamoDB
+  provisioned → on-demand, non-production resources rescheduled to business
+  hours — and, under `--with-usage` (Pro), confirmed orphaned EBS
+  volumes/snapshots, confirmed empty-target-group load balancers, and
+  confirmed unassociated Elastic IPs (deleted, at their full cost).
+- **Offered, never auto-applied** (shown, but excluded from what
+  `--optimize` runs — same "confirm this first" posture these already have
+  in the plain FinOps list): x86 → Graviton (a CPU architecture change),
+  removing RDS Multi-AZ (a high-availability change), and real CPU-based
+  right-sizing under `--with-usage` (a measured-but-inferred resize, with a
+  possible Reserved Instance stranding trade-off).
+- **Not representable as a single what-if change at all** (untouched,
+  same as today): a Reserved Instance/Savings Plan candidate (a purchase
+  decision, not an attribute), an EC2 fleet without an Auto Scaling Group, a
+  NAT Gateway → NAT instance swap (a resource-type change, not a single
+  attribute), a fleet size outlier, Lambda memory right-sizing under
+  `--with-usage` (no what-if flag for it yet — a real, disclosed gap), and
+  every governance nudge (naming, tags — no dollar figure to act on).
+
+`--optimize` finds nothing safe to apply → the run fails clearly (exit 1),
+the same way an empty or no-match `--scenario` already does — never a
+silent no-op. Mutually exclusive with `-t`/`--target`, an individual what-if
+flag, and `--scenario` — put every other combination the what-if
+[flags](#what-if-simulator)/[`--with-usage`](#usage-aware-finops---with-usage)/
+[`--write-changes`](#writing-simulated-changes-to-disk---write-changes-pro)
+sections already document on top of it exactly as you would for a manual
+scenario run.
+
+**Free**, like every what-if simulation — `--optimize` only ever draws from
+the recommendations the report already discloses for your plan, so it can
+never apply more than a Free account can already see. `--write-changes` on
+top stays **Pro**-gated exactly as it already is; a confirmed-orphan
+deletion previews and simulates correctly under `--optimize` but doesn't
+materialize via `--write-changes` yet (`add:`/`remove:` scenario entries
+aren't supported there — see [above](#writing-simulated-changes-to-disk---write-changes-pro)),
+the same disclosed limitation a hand-written `remove: true` scenario entry
+already has.
+
+The VS Code extension's what-if panel exposes the same thing as an
+"⚡ Optimize" button — see [VS Code extension](#vs-code-extension) below.
+
 ## Policies
 
 Define governance and cost rules in a `policies.yaml` (see the one at the
@@ -1349,6 +1416,17 @@ uniquely-named folder next to the original input, never the original
 itself; see [What-if simulator](#what-if-simulator) for exactly which
 input formats and attribute types this supports.
 
+An "⚡ Optimize (N)" button appears above the FinOps list whenever at least
+one recommendation carries a machine-actionable fix — the UI equivalent of
+[`--optimize`](#optimize). Clicking it opens a checklist of every such
+recommendation, pre-checked for the ones safe to apply mechanically and
+left unchecked (with a "⚠ REVIEW FIRST" badge) for the ones that still ask
+for your confirmation first (Graviton, Multi-AZ, an inference-based CPU
+resize). "Apply Selected" builds a scenario from exactly what's checked and
+runs it through the same "Run Scenario" pipeline above — "Generate File
+(Pro)" then works on the result exactly as it would for a manually-staged
+scenario.
+
 The `cloudcosttree.withUsage` setting is the extension's opt-in bridge to
 [`--with-usage`](#usage-aware-finops---with-usage) (Pro) — turning it on
 shows a one-time confirmation dialog (this is the one feature that calls
@@ -1384,7 +1462,10 @@ History's 180-day retention (auto-pruned locally, see `pkg/history`) is disk
 hygiene, not a plan limit — it's the same on both tiers. Custom/negotiated
 [price books](#custom-price-books) (`--price-overrides`) are available on
 both tiers too — a flat %-discount MVP, not a full purchase-type-aware
-model.
+model. [`--optimize`](#optimize) is a what-if simulation like any other, so
+it's Free too — it just never applies more than the FinOps list a given
+plan already discloses (top 3 Free, top 15 Pro); writing its result to disk
+still needs `--write-changes` (Pro), same as a manual scenario.
 
 ```
 cloudcosttree license status     # see your current plan and usage
@@ -1409,7 +1490,8 @@ pkg/cost/            PriceCatalog + Calculator: prices.json → a resource's/tre
 pkg/pricing/         update-prices/generate-prices: AWS Price List API → prices.json
 pkg/usagefile/       --usage file: local, declarative volume overrides (every plan)
 pkg/usage/           --with-usage: live CloudWatch/EC2 Spot/EBS/EIP/ELBv2 calls (Pro)
-pkg/finops/          Savings-recommendation rules (declared-config rules + usage-aware rules)
+pkg/finops/          Savings-recommendation rules (declared-config rules + usage-aware rules),
+                    each optionally carrying a machine-actionable Fix --optimize consumes
 pkg/policy/          Governance/cost policy DSL: parsing, condition evaluation, templates
 pkg/score/           Cost Score: FinOps + policy findings → a 0-100/A-F health grade (every plan)
 pkg/resourcespec/    Per-resource-type registry: which what-if flags apply to which
