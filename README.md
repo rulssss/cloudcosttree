@@ -968,8 +968,11 @@ grouping) — acceptable for simulating "what if I add a read replica"-style
 questions, where the point is the cost delta, not where it'd land in a real
 module tree. `remove: true` (with a `target`) deletes that resource instead;
 neither `add:` nor `remove:` can be combined with `flags:` in the same
-entry. `--write-changes` doesn't support either yet — a scenario entry using
-one is listed in `WHATIF_CHANGES.md` as unsupported, the same way an
+entry. `--write-changes` materializes `remove:` for this tool's own
+YAML/JSON schema (splicing the matching resource out, including one nested
+under another's `children:`), but not yet for Terraform/Terragrunt HCL
+input, and doesn't support `add:` at all yet for any format — an
+unsupported entry is listed in `WHATIF_CHANGES.md`, the same way an
 unmapped flag or a non-literal expression already is.
 
 ### Writing simulated changes to disk (`--write-changes`, Pro)
@@ -1099,11 +1102,12 @@ scenario run.
 the recommendations the report already discloses for your plan, so it can
 never apply more than a Free account can already see. `--write-changes` on
 top stays **Pro**-gated exactly as it already is; a confirmed-orphan
-deletion previews and simulates correctly under `--optimize` but doesn't
-materialize via `--write-changes` yet (`add:`/`remove:` scenario entries
-aren't supported there — see [above](#writing-simulated-changes-to-disk---write-changes-pro)),
-the same disclosed limitation a hand-written `remove: true` scenario entry
-already has.
+deletion previews and simulates correctly under `--optimize` for every input
+format, and now materializes via `--write-changes` too for this tool's own
+YAML/JSON schema — Terraform/Terragrunt HCL input still can't have a
+resource block deleted this way (the same disclosed limitation a
+hand-written `remove: true` scenario entry has — see
+[above](#writing-simulated-changes-to-disk---write-changes-pro)).
 
 The VS Code extension's what-if panel exposes the same thing as an
 "⚡ Optimize" button — see [VS Code extension](#vs-code-extension) below.
