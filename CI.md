@@ -26,6 +26,7 @@ output, the same as the GitHub Action does.
 - [Azure Pipelines](#azure-pipelines)
 - [Bitbucket Pipelines](#bitbucket-pipelines)
 - [Terraform Cloud / Atlantis](#terraform-cloud--atlantis)
+- [Other CI systems](#other-ci-systems)
 - [CI detection and colored output](#ci-detection-and-colored-output)
 - [Installing CloudCostTree in a pipeline](#installing-cloudcosttree-in-a-pipeline)
 
@@ -506,6 +507,42 @@ pre-generated `terraform show -json <planfile>` plan artifact (e.g. one
 Atlantis already produced for its own PR comment) directly into
 CloudCostTree isn't supported yet — only a live `.tf` plan or an
 already-applied `.tfstate` are recognized input shapes today.
+
+## Other CI systems
+
+Jenkins, CircleCI, Buildkite, and anything else not covered above.
+`cloudcosttree` already detects `JENKINS_URL`, `CIRCLECI`, and `BUILDKITE`
+(see [CI detection and colored output](#ci-detection-and-colored-output)
+below) alongside the generic `CI=true` convention nearly every CI system
+sets — colors turn off and output stays clean automatically, no setup
+needed for that part. There's no dedicated walkthrough for these three the
+way there is for GitHub Actions/GitLab CI/Azure Pipelines/Bitbucket
+Pipelines above, because the two things a platform-specific guide would
+normally add are already covered generically:
+
+- **Installing the binary**: identical everywhere — see [Installing
+  CloudCostTree in a pipeline](#installing-cloudcosttree-in-a-pipeline)
+  below. The same `curl`/`chmod` two-liner runs in a Jenkins agent, a
+  CircleCI executor, or a Buildkite agent exactly as it does in the GitLab
+  CI example above (Jenkins/CircleCI/Buildkite are all "bring your own
+  shell script" platforms with no reusable-action equivalent, same as
+  GitLab).
+- **Gating the build**: `cloudcosttree ci check <path> -policies
+  <path>` behaves identically regardless of what's invoking it — exit `0`
+  clean, `1` warn-only, `2` blocking violations (see [`ci
+  check`](#ci-check) above). Check `$?` after the command the same way the
+  GitLab example does.
+
+The one piece that's genuinely platform-specific is posting the result as
+a PR/MR comment — and that's determined by **where your code is hosted**
+(GitHub, GitLab, Bitbucket, ...), not by which CI system is running the
+job. A Jenkins job building a GitHub-hosted repo posts a PR comment the
+same way the GitHub Actions example does (`gh pr comment`, with a `GITHUB_TOKEN`
+supplied as a Jenkins credential instead of the Action's automatic one); a
+CircleCI job building a GitLab-hosted repo follows the GitLab CI example's
+REST API calls verbatim. Use whichever of the four walkthroughs above
+matches your **git host**, not your CI system, and swap only the
+install/trigger boilerplate for your platform's own syntax.
 
 ## CI detection and colored output
 
