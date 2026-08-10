@@ -968,12 +968,18 @@ grouping) — acceptable for simulating "what if I add a read replica"-style
 questions, where the point is the cost delta, not where it'd land in a real
 module tree. `remove: true` (with a `target`) deletes that resource instead;
 neither `add:` nor `remove:` can be combined with `flags:` in the same
-entry. `--write-changes` materializes `remove:` for this tool's own
-YAML/JSON schema (splicing the matching resource out, including one nested
-under another's `children:`), but not yet for Terraform/Terragrunt HCL
-input, and doesn't support `add:` at all yet for any format — an
-unsupported entry is listed in `WHATIF_CHANGES.md`, the same way an
-unmapped flag or a non-literal expression already is.
+entry. `--write-changes` materializes `remove:` for every supported input
+format — this tool's own YAML/JSON schema (splicing the matching resource
+out, including one nested under another's `children:`) and Terraform/
+Terragrunt HCL (deleting the whole `resource` block, resolved and
+disambiguated across the source tree the exact same way a flag change is —
+see [above](#writing-simulated-changes-to-disk---write-changes-pro)) — except
+a `count`/`for_each` resource, since one block backs every instance there
+and deleting it would remove all of them, not just the one a `remove:` entry
+names; that case is refused with a clear reason instead of guessed at.
+`add:` stays unsupported for every format — an unsupported entry is listed
+in `WHATIF_CHANGES.md`, the same way an unmapped flag or a non-literal
+expression already is.
 
 ### Writing simulated changes to disk (`--write-changes`, Pro)
 
@@ -1102,11 +1108,10 @@ scenario run.
 the recommendations the report already discloses for your plan, so it can
 never apply more than a Free account can already see. `--write-changes` on
 top stays **Pro**-gated exactly as it already is; a confirmed-orphan
-deletion previews and simulates correctly under `--optimize` for every input
-format, and now materializes via `--write-changes` too for this tool's own
-YAML/JSON schema — Terraform/Terragrunt HCL input still can't have a
-resource block deleted this way (the same disclosed limitation a
-hand-written `remove: true` scenario entry has — see
+deletion previews, simulates, and now materializes to disk correctly under
+`--optimize` for every supported input format — the same
+`count`/`for_each` exception a hand-written `remove: true` scenario entry
+has applies here too (see
 [above](#writing-simulated-changes-to-disk---write-changes-pro)).
 
 The VS Code extension's what-if panel exposes the same thing as an
