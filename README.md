@@ -15,6 +15,8 @@ executed against AWS. `guard` gates or warns before your own `terraform
 apply` runs; it never runs one itself. Nothing this tool does can create,
 modify, or destroy a real cloud resource.
 
+![cloudcosttree running against a real Terraform file, showing the cost tree, Cost Score, and FinOps recommendations](media/demo.gif)
+
 ```
 $ cloudcosttree ./my-infra.tf
 
