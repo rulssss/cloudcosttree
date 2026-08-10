@@ -8,6 +8,13 @@ governance/cost policy checks, and a what-if simulator for testing changes
 before they hit your cloud bill. AWS-only by design, CLI-only by design: no
 multi-cloud, no hosted dashboard, no account required to see a cost tree.
 
+**CloudCostTree never applies infrastructure changes.** Every simulated
+change — a what-if, `--optimize`, a scenario — is written to a new file or
+directory (`--write-changes`), never to your original source, and never
+executed against AWS. `guard` gates or warns before your own `terraform
+apply` runs; it never runs one itself. Nothing this tool does can create,
+modify, or destroy a real cloud resource.
+
 ```
 $ cloudcosttree ./my-infra.tf
 
