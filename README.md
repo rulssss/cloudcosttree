@@ -906,8 +906,8 @@ declared, priced attribute has a matching flag — `--instance-type`/
 `--snapshot-size`, `--nat-data`, `--nat-type`, `--data-out`/`--data-in`,
 `--elastic-ips`, `--dynamo-rcu`/`--dynamo-wcu`/`--dynamo-mode`,
 `--table-class`, `--lb-type`/`--lb-scheme`, `--retention-days`,
-`--hours-per-month`, and more — run `cloudcosttree analyze --help` for the
-complete, resource-scoped list.
+`--hours-per-month`, `--lambda-memory`, and more — run
+`cloudcosttree analyze --help` for the complete, resource-scoped list.
 
 ### Multi-resource scenarios (`--scenario`)
 
@@ -1072,16 +1072,19 @@ already confirmed is unused:
 - **Offered, never auto-applied** (shown, but excluded from what
   `--optimize` runs — same "confirm this first" posture these already have
   in the plain FinOps list): x86 → Graviton (a CPU architecture change),
-  removing RDS Multi-AZ (a high-availability change), and real CPU-based
+  removing RDS Multi-AZ (a high-availability change), real CPU-based
   right-sizing under `--with-usage` (a measured-but-inferred resize, with a
-  possible Reserved Instance stranding trade-off).
+  possible Reserved Instance stranding trade-off), and Lambda memory
+  right-sizing under `--with-usage` (a measured, real `--lambda-memory`
+  what-if change — but Lambda's CPU allocation scales with memory_size, so a
+  smaller function can run measurably slower, a trade-off worth confirming
+  before applying).
 - **Not representable as a single what-if change at all** (untouched,
   same as today): a Reserved Instance/Savings Plan candidate (a purchase
   decision, not an attribute), an EC2 fleet without an Auto Scaling Group, a
   NAT Gateway → NAT instance swap (a resource-type change, not a single
-  attribute), a fleet size outlier, Lambda memory right-sizing under
-  `--with-usage` (no what-if flag for it yet — a real, disclosed gap), and
-  every governance nudge (naming, tags — no dollar figure to act on).
+  attribute), a fleet size outlier, and every governance nudge (naming,
+  tags — no dollar figure to act on).
 
 `--optimize` finds nothing safe to apply → the run fails clearly (exit 1),
 the same way an empty or no-match `--scenario` already does — never a
