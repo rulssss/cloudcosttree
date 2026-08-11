@@ -1508,7 +1508,7 @@ cmd/cloudcosttree/   CLI entrypoint, flag parsing, Free/Pro gating (license_gate
 pkg/parser/          Terraform (plan + state), Terragrunt, CloudFormation, Pulumi → model.Infrastructure
 pkg/model/           The shared Resource/Infrastructure schema every parser/renderer speaks
 pkg/cost/            PriceCatalog + Calculator: prices.json → a resource's/tree's $/mo
-pkg/pricing/         update-prices/generate-prices: AWS Price List API → prices.json
+pkg/pricing/         update-prices/generate-prices: AWS Price List Bulk + Query APIs → prices.json
 pkg/usagefile/       --usage file: local, declarative volume overrides (every plan)
 pkg/usage/           --with-usage: live CloudWatch/EC2 Spot/EBS/EIP/ELBv2 calls (Pro)
 pkg/finops/          Savings-recommendation rules (declared-config rules + usage-aware rules),
@@ -1534,6 +1534,25 @@ automation and fetched by end users as a plain public file — the only
 CloudCostTree capability that needs an AWS account of its own is
 `--with-usage`, and that account is always the end user's, never this
 project's.
+
+That automation itself (`generate-prices`, run by
+`.github/workflows/update-prices.yml`, not exposed to end users) fetches
+almost the entire catalog from AWS's public, unauthenticated **Price List
+Bulk API** — static per-region JSON files with no per-account rate limit —
+rather than AWS's rate-limited `pricing:GetProducts` Query API. EC2 is the
+one exception: its bulk file runs 47-480MB per region (it also covers EBS,
+NAT Gateway, and Dedicated Hosts, since those bill under the same
+`AmazonEC2` service code AWS-side) — multiple GB across this project's ~32
+regions, not worth the streaming-JSON rewrite that would take next to
+EC2's already-narrow, already-filtered Query API calls. So EC2 alone still
+goes through the Query API (and is the only reason `generate-prices` still
+needs an AWS account of its own — every other service dropped that
+requirement entirely). Because a bulk file carries a service's *entire*
+regional catalog rather than only the specific types this project happened
+to query for, RDS instance-class coverage widened accordingly: 251
+current-generation classes priced per region instead of ~19 curated ones,
+with no extra fetch cost (see `effectiveRDSInstanceClasses` in
+`pkg/pricing/service_rds.go`).
 
 ## License
 
