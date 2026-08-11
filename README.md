@@ -1508,7 +1508,7 @@ cmd/cloudcosttree/   CLI entrypoint, flag parsing, Free/Pro gating (license_gate
 pkg/parser/          Terraform (plan + state), Terragrunt, CloudFormation, Pulumi → model.Infrastructure
 pkg/model/           The shared Resource/Infrastructure schema every parser/renderer speaks
 pkg/cost/            PriceCatalog + Calculator: prices.json → a resource's/tree's $/mo
-pkg/pricing/         update-prices/generate-prices: AWS Price List Bulk + Query APIs → prices.json
+pkg/pricing/         update-prices/generate-prices: AWS Price List Bulk API → prices.json
 pkg/usagefile/       --usage file: local, declarative volume overrides (every plan)
 pkg/usage/           --with-usage: live CloudWatch/EC2 Spot/EBS/EIP/ELBv2 calls (Pro)
 pkg/finops/          Savings-recommendation rules (declared-config rules + usage-aware rules),
@@ -1537,22 +1537,31 @@ project's.
 
 That automation itself (`generate-prices`, run by
 `.github/workflows/update-prices.yml`, not exposed to end users) fetches
-almost the entire catalog from AWS's public, unauthenticated **Price List
-Bulk API** — static per-region JSON files with no per-account rate limit —
-rather than AWS's rate-limited `pricing:GetProducts` Query API. EC2 is the
-one exception: its bulk file runs 47-480MB per region (it also covers EBS,
-NAT Gateway, and Dedicated Hosts, since those bill under the same
-`AmazonEC2` service code AWS-side) — multiple GB across this project's ~32
-regions, not worth the streaming-JSON rewrite that would take next to
-EC2's already-narrow, already-filtered Query API calls. So EC2 alone still
-goes through the Query API (and is the only reason `generate-prices` still
-needs an AWS account of its own — every other service dropped that
-requirement entirely). Because a bulk file carries a service's *entire*
-regional catalog rather than only the specific types this project happened
-to query for, RDS instance-class coverage widened accordingly: 251
-current-generation classes priced per region instead of ~19 curated ones,
-with no extra fetch cost (see `effectiveRDSInstanceClasses` in
-`pkg/pricing/service_rds.go`).
+the entire catalog — EC2 included — from AWS's public, unauthenticated
+**Price List Bulk API**: static per-region JSON files with no per-account
+rate limit, in place of AWS's rate-limited `pricing:GetProducts` Query API
+this project used until this pass. `generate-prices` itself now needs no
+AWS account/credentials of its own at all. EC2's bulk file (47-480MB per
+region — it also covers EBS, NAT Gateway, and Dedicated Hosts, since those
+bill under the same `AmazonEC2` service code AWS-side) is large enough that
+fetching every region's copy at once would spike memory well past what a
+CI runner should need, so `pkg/pricing/bulk.go`'s `ec2BulkGate` serializes
+just that one service's downloads across regions — every other service
+still fetches fully concurrently.
+
+Because a bulk file carries a service's *entire* regional catalog rather
+than only the specific types this project happened to query for, instance
+coverage widened across the board at no extra fetch cost, replacing
+hand-curated lists with real discovery
+(`effectiveRDSInstanceClasses`/`effectiveEC2InstanceTypes` in
+`pkg/pricing/service_rds.go`/`service_ec2.go`, `emrEligibleInstanceTypes`
+in `pkg/pricing/regions.go`):
+
+| | Before | Now (us-east-1) |
+|---|---|---|
+| RDS instance classes | ~19 curated | 251 discovered |
+| EC2 instance types | ~53 curated | 1,300+ discovered |
+| EMR instance types | 10 curated | 42 (every current-gen, non-burstable, ≥.xlarge EC2 type — EMR's own real minimum) |
 
 ## License
 
