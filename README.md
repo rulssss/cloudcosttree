@@ -55,9 +55,10 @@ below); CloudFormation input never carries a real post-apply
 resource ID by itself (unlike Terraform/Pulumi input, which always does) —
 `--with-usage` enrichment needs the extra `--stack-name <name>` flag to
 resolve one live, since a plain template has no state of its own to read it
-from; and Amazon Managed Grafana / most of AppStream 2.0's fleet
-configurations aren't mapped. Everything else this tool doesn't price is
-either genuinely free
+from; and Amazon Managed Grafana isn't mapped — it bills per active
+Viewer/Editor/Enterprise-Plugin user, and `aws_grafana_workspace` declares
+no user count to price against at all. Everything else this tool doesn't
+price is either genuinely free
 (a VPC, a security group) or just hasn't been mapped yet — see below for the
 full, honest list of what that covers and why.
 
@@ -689,15 +690,42 @@ covers `BytesDownloaded` only, matching the flat heuristic it replaces —
 `Requests` and CloudFront's real edge-location price-class tiering
 aren't modeled.
 
+SNS (`aws_sns_topic`) gets real `--with-usage` refinement from
+CloudWatch's real `NumberOfMessagesPublished`, dimensioned by the topic's
+real declared `name` (Terraform's own `id` for this resource is the
+topic's ARN, not a CloudWatch-compatible dimension value). This only
+refines the publish side, matching what the existing flat heuristic
+already assumed — SNS's real cost is usually dominated by per-protocol
+delivery fanout (SMS/push/HTTP/email/SQS/Lambda), each billed at a very
+different rate, which isn't measured or priced by this tool at all.
+
+GuardDuty (`aws_guardduty_detector`) gets real `--with-usage` refinement
+from CloudWatch's real `AnalyzedCount`. Unlike every other `--with-usage`
+type, GuardDuty allows only one detector per account per region, so its
+metrics carry no per-detector dimension at all — AWS scopes them by the
+account's real `AccountId` (a computed attribute this tool reads directly
+off the detector resource) plus a fixed `DataSource=CloudTrailEvents`
+dimension instead. This only refines the CloudTrail-events component,
+matching the existing flat heuristic's own scope — `AnalyzedBytes` (VPC
+Flow Logs/DNS logs, the other Foundational Threat Detection component,
+often the larger one) and every other protection plan (S3, EKS, Malware,
+Runtime Monitoring, RDS, Lambda, AI) aren't priced by this tool at all
+yet. CloudFormation input can't resolve `AccountId` at all (no such
+property exists on `AWS::GuardDuty::Detector` — it's implicit to the
+stack's deploy target, not something a static template declares), so this
+refinement only activates for Terraform/Pulumi input.
+
 Amazon Managed Service for Prometheus' fully-managed collector
 (`aws_prometheus_scraper`/`AWS::APS::Scraper`) is priced at its real flat
 per-hour rate — a single "managed collector" charge with no capacity
 attribute to size against. The workspace it scrapes into
 (`aws_prometheus_workspace`) is deliberately left unpriced rather than
-approximated: it has no capacity attribute either, and AWS publishes no
-CloudWatch metric at all for its storage size, so the real tiered
-ingestion/storage/query billing can't be measured or declared, only
-guessed — and this tool doesn't guess.
+approximated: it has no capacity attribute either, and none of its 3 real
+billing components (ingestion, storage, query processing) has a
+CloudWatch metric with a per-workspace dimension — confirmed against
+AWS's own CloudWatch metrics reference, not just unresearched — so the
+real tiered billing can't be measured or declared for a single workspace,
+only guessed, and this tool doesn't guess.
 
 AWS M2/Mainframe Modernization (`aws_m2_environment`/
 `AWS::M2::Environment`) is priced by each environment's real declared
