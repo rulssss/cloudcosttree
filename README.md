@@ -1,12 +1,13 @@
 # CloudCostTree
 
-Estimate AWS infrastructure costs in a hierarchical tree — before you
-apply. CloudCostTree reads your infrastructure-as-code (Terraform,
-CloudFormation, Pulumi, a raw Terraform state file, or its own YAML/JSON)
-and renders a cost breakdown, FinOps savings recommendations,
-governance/cost policy checks, and a what-if simulator for testing changes
-before they hit your cloud bill. AWS-only by design, CLI-only by design: no
-multi-cloud, no hosted dashboard, no account required to see a cost tree.
+Understand, question, and experiment with what your AWS infrastructure
+will cost — before you `terraform apply`. CloudCostTree reads your
+infrastructure-as-code (Terraform, CloudFormation, Pulumi, a raw Terraform
+state file, or its own YAML/JSON) and renders a cost breakdown, FinOps
+savings recommendations, governance/cost policy checks, and a what-if
+simulator for testing changes before they hit your cloud bill. AWS-only by
+design, CLI-only by design: no multi-cloud, no hosted dashboard, no account
+required to see a cost tree.
 
 **CloudCostTree never applies infrastructure changes.** Every simulated
 change — a what-if, `--optimize`, a scenario — is written to a new file or
@@ -14,8 +15,6 @@ directory (`--write-changes`), never to your original source, and never
 executed against AWS. `guard` gates or warns before your own `terraform
 apply` runs; it never runs one itself. Nothing this tool does can create,
 modify, or destroy a real cloud resource.
-
-![cloudcosttree running against a real Terraform file, showing the cost tree, Cost Score, and FinOps recommendations](media/demo.gif)
 
 ```
 $ cloudcosttree ./my-infra.tf
@@ -31,10 +30,13 @@ my-infra.tf ($842.13/mo)
 
 ## Who this is for
 
-CloudCostTree targets small/medium projects that want a simpler, cheaper
-pricing model and a lightweight, single-binary tool for cost visibility —
-today that means AWS, where it prices ~85 resource types with real,
-fetched-from-AWS rates (see [Supported AWS
+CloudCostTree is for anyone who wants to question a plan's cost impact
+before committing to it — not just see a number after the fact. That
+fits an individual estimating their own AWS bill just as well as it fits
+a company's platform, DevOps, or FinOps team checking infrastructure-as-code
+as part of their normal review workflow, backed by real breadth of
+coverage — not a narrow calculator. Today that means AWS, where it prices
+~118 resource types with real, fetched-from-AWS rates (see [Supported AWS
 resources](#supported-aws-resources) below).
 
 For context: AWS itself has 240+ services; everything this tool doesn't
@@ -299,25 +301,121 @@ retention, including separate Aurora writer/reader instances, and Aurora
 Serverless v2's `db.serverless` instance class priced against its real min
 ACU — cross-referenced from the owning `aws_rds_cluster`'s
 `serverlessv2_scaling_configuration` for Terraform input, falling back to an
-assumed 0.5 ACU floor for CloudFormation/Pulumi input), standalone
+assumed 0.5 ACU floor for CloudFormation/Pulumi input; Aurora Serverless
+v1's own `engine_mode = "serverless"` + `scaling_configuration.min_capacity`
+— read directly off the same `aws_rds_cluster` resource, since unlike v2's
+it isn't split across a separate child instance — is priced the same way,
+against its own real, separate SKU at half v2's per-ACU rate, falling back
+to v1's real 1 ACU floor when `min_capacity` is unset), standalone
 EBS volumes (gp2/gp3/io1/io2, provisioned IOPS and throughput, snapshots),
 S3 buckets, EFS file systems, DynamoDB tables (provisioned RCU/WCU with
-table-class multiplier, or on-demand), NAT Gateway (fixed rate + data
-processed), Elastic IPs, ELB/ALB/NLB/GWLB, EKS clusters, ElastiCache
-(single-node and Redis replication groups), VPN Gateway/Connection, Transit
-Gateway VPC attachments, VPC Interface Endpoints, Redshift, Kinesis (Streams
+table-class multiplier, or on-demand; Global Tables' replicated write
+capacity — a real, separate AWS charge billed per additional replica
+region, on top of the table's own base WCU), NAT Gateway (fixed rate + data
+processed), Elastic IPs, ELB/ALB/NLB/GWLB, EKS clusters, AWS Verified
+Access (priced per endpoint-hour, HTTP/HTTPS vs. non-HTTP `cidr` endpoints
+at their real, different AWS rates), VPC Lattice (priced per associated
+service-hour — the service network itself carries no separate AWS charge),
+ElastiCache
+(single-node and Redis/Memcached/Valkey replication groups — priced by
+each node's real declared `node_type` × real node count, engine-aware
+since the same node type has a genuinely different rate per engine; not a
+flat cache.t3.micro/Redis-only representative rate) and ElastiCache
+Serverless
+(real per-engine ECPU-hour + GB-hour storage rates — Redis, Memcached, and
+Valkey are each genuinely priced differently; AWS's own real metering
+floors apply when `cache_usage_limits` isn't set — no ECPU minimum at all,
+but a real 1GB/0.1GB storage minimum for non-Valkey/Valkey engines
+respectively), VPN Gateway/Connection, Transit
+Gateway VPC attachments, VPC Endpoints (priced by real declared
+`vpc_endpoint_type` — Gateway endpoints, e.g. to S3/DynamoDB, correctly
+price at a real $0, since AWS publishes no billing SKU for them at all;
+Interface, Gateway Load Balancer, and Resource endpoints each get their own
+real per-hour rate, multiplied by real declared `subnet_ids` count for
+Interface/Gateway Load Balancer — one ENI billed per AZ; ServiceNetwork has
+no confirmed real rate yet and is left unpriced), Redshift (priced by each
+cluster's real declared `node_type` × `number_of_nodes`, defaulting to 1
+node the same way Terraform's own schema does; not a flat ra3.large-only
+representative rate), Kinesis (Streams
 and Firehose), ECS/Fargate services and task definitions, RDS Proxy, Lambda
 (invocations + GB-seconds), CloudFront, CloudWatch (Logs ingestion, custom
 metrics/alarms), API Gateway, GuardDuty, Security Hub, Config, CloudTrail,
-SQS, SNS, Route 53 (hosted zone, health check, resolver endpoint), KMS,
-Secrets Manager, MSK (Kafka), OpenSearch/Elasticsearch, DocumentDB and
+SQS, SNS, Route 53 (hosted zone, health check — flat AWS-endpoint base rate
+plus a real, separately-billed surcharge for each optional feature actually
+declared: HTTPS, string matching, a fast 10s `request_interval`, and
+`measure_latency`, each stacking independently at their own real rate;
+resolver endpoint), Route 53 Application Recovery Controller (real flat
+per-cluster hourly rate — `aws_route53recoverycontrolconfig_cluster` has no
+capacity attribute of its own, matching AWS's own per-cluster-only billing),
+AWS Firewall Manager (`aws_fms_policy`, real flat per-policy-per-Region
+monthly rate — identical across every protection type per AWS's own
+pricing, so no `security_service_policy_data.type` matching is needed; the
+one documented exception, a $0 rate for accounts already subscribed to
+Shield Advanced, can't be resolved from the resource alone and is priced at
+the same real rate as every other policy type rather than guessed at $0),
+KMS,
+Secrets Manager, MSK (Kafka — priced by each broker's real declared
+`instance_type` × `number_of_broker_nodes`, plus real per-broker EBS
+storage; not a flat representative-instance rate), OpenSearch/Elasticsearch
+(priced by each domain's real declared data-node `instance_type` ×
+`instance_count`; dedicated master nodes are a real, separate AWS charge
+not modeled), DocumentDB and
 Neptune (cluster instances only — the cluster resource itself has no
 separate AWS charge), Network Firewall, WAFv2 Web ACL, FSx for Windows File
 Server, AWS Lightsail (priced per bundle, General Purpose Linux bundles
-only), DynamoDB Accelerator (DAX, priced per node type), AWS Managed
+only), Amazon Lightsail Database (real per-bundle-tier monthly price —
+micro/small/medium/large, High Availability priced separately at its own
+real rate; only these 4 confirmed active tiers, AWS's own published
+bundle list), Amazon WorkSpaces (`aws_workspaces_workspace`'s
+`compute_type_name` × `running_mode`, benchmarked against a Windows,
+AWS-Included-license configuration — the real OS/license actually billed
+comes from an opaque `bundle_id` this tool can't resolve without a live
+API call, same class of gap as an AMI lookup; AlwaysOn is a real flat
+monthly rate, AutoStop prices only the always-billed base fee, not the
+additional real per-hour usage charge, a documented floor like Kinesis
+Data Analytics/Lambda/SQS/SNS below; the legacy `GRAPHICS` compute type has
+no real bundle left in AWS's own price list and stays unpriced;
+`aws_workspaces_pool` isn't priced at all — it has no compute-tier
+attribute whatsoever, only an opaque `bundle_id`), AWS CodeBuild reserved
+capacity fleets (`aws_codebuild_fleet`'s real per-minute rate — always
+billed, whether idle or building, since a reserved fleet's machines never
+stop — converted to hourly and multiplied by the real declared
+`base_capacity`; a genuine 3-way branch: `BUILD_GENERAL1_*` sizes resolve
+against `environment_type` for the real OS/architecture family,
+`CUSTOM_INSTANCE_TYPE` prices the real declared EC2 `instance_type`
+directly, and `ATTRIBUTE_BASED_COMPUTE` replicates AWS's own real
+behavior — picking the cheapest of a fixed real menu of shapes whose vCPU
+and memory both meet the declared minimums, not just the closest by
+vCPU alone), DynamoDB Accelerator
+(DAX, priced per node type), AWS Managed
 Microsoft AD, Amazon MQ (priced per broker instance type), AWS Backup
-(vault storage), CloudHSM, Amazon SageMaker (classic notebook instances
-only — real-time inference endpoints aren't priced, see below), AWS
+(vault storage), CloudHSM, Amazon SageMaker (classic notebook instances —
+real-time inference endpoints are priced too, see below), Amazon SageMaker
+Studio/RStudio apps (`aws_sagemaker_app`'s real per-instance-type rate for
+KernelGateway/CodeEditor/JupyterLab/RStudioServerPro/RSessionGateway —
+each a genuinely separate real rate from every other SageMaker compute
+type, not the generic notebook/endpoint rate; TensorBoard always runs on
+one fixed real instance size regardless of any declared instance_type;
+Canvas is priced at a flat real per-session-hour rate, not by instance
+type at all; JupyterServer and DetailedProfiler aren't priced — real bulk
+data confirms neither has a billable instance rate, JupyterServer only
+ever running on an unbilled placeholder value per AWS's own docs), AWS
+Elemental MediaConvert reserved queues (`aws_media_convert_queue`'s real
+flat monthly rate per Reserved Transcode Slot, times the real declared
+`reserved_slots` — the default `ON_DEMAND` pricing plan isn't priced, its
+real rate is a large per-minute matrix keyed by codec/resolution/quality/
+framerate this tool has no way to pick a single value from statically),
+AWS Elemental MediaLive channels (`aws_medialive_channel`'s real input
+ingestion rate, keyed by `channel_class` × `input_specification`'s real
+codec/resolution/maximum_bitrate, plus one real rate per configured video
+output — each output resolved by joining its `video_description_name`
+back to the matching `video_descriptions` entry and reading its real
+codec_settings, since MediaLive bills inputs and outputs as separate,
+independently-metered components, not a single blended channel rate;
+H264/H265 are the only two codecs modeled — the only two Terraform's real
+schema exposes at all, MPEG-2/AV1 aren't reachable through it; a redundant
+`STANDARD` channel_class's cost is already fully baked into its real rate,
+not doubled by this tool), AWS
 Transfer Family, AWS Direct Connect (dedicated connections, priced per
 bandwidth), Amazon ECR (repository storage), Amazon Managed Workflows for
 Apache Airflow (MWAA, priced as the sum of an environment's
@@ -364,7 +462,22 @@ pipeline's min_units, another real declared attribute needing no assumed
 floor, times the same per-OCU rate as OpenSearch Serverless above —
 confirmed identical across both services), and Amazon AppStream 2.0 (fleet
 instance type x compute_capacity.desired_instances), and AWS Storage
-Gateway's FSx File Gateway type (`gateway_type = "FILE_FSX_SMB"`). EC2
+Gateway's FSx File Gateway type (`gateway_type = "FILE_FSX_SMB"`), and
+Amazon Kinesis Data Streams (real per-shard-hour rate x real declared
+`shard_count` for PROVISIONED-mode streams, or a separate real flat
+per-stream-hour rate for ON_DEMAND mode — a genuinely different billing
+model, not the same rate applied differently), Amazon CloudSearch (real
+per-search-instance-type rate), Amazon WorkMail (a flat per-user monthly
+fee), AWS Shield Advanced (a flat account-level monthly subscription fee),
+Amazon Athena Capacity Reservations (real per-DPU-hour rate x real
+declared `target_dpus`), Amazon FinSpace Managed kdb Kx Clusters (real
+per-node-type rate x real declared `node_count`), Amazon Lightsail
+Container Service (real per-power-tier rate x real declared `scale`),
+AppStream Image Builder (a separate real rate from AppStream Fleet, even
+for the identical `instance_type`), and API Gateway stage-level caching
+(8 real discrete cache-size tiers, priced on top of the existing
+per-request API Gateway rate; $0 when no cache is enabled, the common
+case). EC2
 Dedicated Hosts are also priced (per instance_family — a whole host is
 billed by family, not individual instance size — or, for a host declared via
 the mutually exclusive instance_type attribute instead, the same real rate
@@ -411,7 +524,11 @@ as `autoscaling_group_unresolved`): resolving which base model it was
 fine-tuned from would need a cross-reference this project deliberately
 limits to its four existing cases, `aws_autoscaling_group`/
 `aws_sagemaker_endpoint`/Aurora Serverless v2's cluster join/Neptune
-Serverless's cluster join, below and above.
+Serverless's cluster join, below and above. AWS Glue Jobs
+(`aws_glue_job`'s `worker_type` x `number_of_workers`, mapped to AWS's real
+per-worker DPU sizing — Standard/G.1X/G.025X/G.2X against the standard
+DPU-hour rate, G.4X/G.8X against the memory-optimized rate — Terraform-only,
+same posture as Managed Blockchain above).
 
 EC2 Auto Scaling groups (`aws_autoscaling_group`) are also priced — the
 first of four resources this tool cross-references another declared
@@ -501,6 +618,99 @@ memory size is the one exception that's always real with no extra
 step: it's a normal Terraform attribute (`memory_size`), read
 automatically.
 
+AWS DataSync (`aws_datasync_task`/`AWS::DataSync::Task`, Basic mode — the
+real AWS default) is priced the same per-GB-transferred way, but
+deliberately shows **`[Not available]`** rather than a guessed default
+volume when no real usage figure is declared: it's a brand-new resource
+type with no established "typical monthly transfer" to assume one from,
+so a bare number would just be invented. Declare a real `monthly_gb` via
+a [--usage file](#real-usage-volume---usage-file) or, on Pro, let
+[`--with-usage`](#usage-aware-finops---with-usage) pull the real transferred-bytes
+figure from CloudWatch. Enhanced mode isn't priced at all yet (its
+separate per-task-execution charge has no usage input modeled).
+
+Amazon Kinesis Video Streams (`aws_kinesis_video_stream`/
+`AWS::KinesisVideo::Stream`) gets the same `[Not available]`-until-declared
+treatment for its two unambiguous cost components — real per-GB
+ingestion (`monthly_gb` in a `--usage` file, or `--with-usage`'s real
+CloudWatch `PutMedia.IncomingBytes`) and storage, *derived* from that
+ingestion rate × the stream's own declared `data_retention_in_hours`
+(always real, no override needed — 0 hours, Terraform's own default,
+correctly means $0 storage, matching AWS's real "doesn't persist data"
+behavior). Consumption (`GetMedia` and its HLS/DASH/clip variants)
+deliberately isn't priced at all: AWS bills it at 4+ different rates
+depending on which specific read API an application uses, and nothing in
+a declared stream says which one — approximating with any single rate
+risked a confidently-wrong number.
+
+Aurora DSQL (`aws_dsql_cluster`/`AWS::DSQL::Cluster`) gets the same
+`[Not available]`-until-declared treatment for its real per-DPU compute
+cost (`monthly_requests` in a `--usage` file, or `--with-usage`'s real
+CloudWatch `TotalDPU`) — AWS's single normalized billing unit covering
+all query processing, reads, and writes. Storage is priced on top when
+available, but **`--with-usage`/Pro only**, no `--usage`-file equivalent:
+it's a live snapshot of the cluster's actual current size
+(`ClusterStorageSize`), not a monthly volume you could sensibly declare
+in advance for a not-yet-existing cluster the way expected traffic can
+be.
+
+Kinesis Firehose (`aws_kinesis_firehose_delivery_stream`) got a real
+pricing **bug fix**, not just a `--with-usage` addition: a delivery
+stream sourced from an existing Kinesis Data Stream
+(`kinesis_source_configuration` declared) has no ingestion charge of its
+own at all — that data is already billed via the source stream — but
+this tool previously charged it the same flat assumed-volume heuristic
+as every other Firehose stream. It now correctly prices at $0. A
+Direct-PUT-sourced stream (the default, no source block declared) keeps
+its existing heuristic and additionally gets real `--with-usage`
+refinement from CloudWatch's `IncomingBytes`. MSK-sourced streams
+(`msk_source_configuration`) aren't distinguished from Direct-PUT yet —
+a real, separate AWS rate, left as a known gap rather than approximated.
+
+SQS (`aws_sqs_queue`) also gets real `--with-usage` refinement, from
+CloudWatch's real `NumberOfMessagesSent` — with one honestly-documented
+imprecision: AWS bills SQS per API *request*, not per message, so a
+`SendMessageBatch` call carrying 10 messages is 1 billable request but
+shows as 10 in this metric. For applications that send/receive one
+message at a time (no batching), the number is exactly correct; for
+batching applications it overstates the real cost. Still a real,
+measured number, not an invented one — just an imperfect proxy for the
+literal billing unit in that one case.
+
+CloudFront (`aws_cloudfront_distribution`) gets real `--with-usage`
+refinement too, from CloudWatch's real `BytesDownloaded`. This one needs
+extra plumbing under the hood most `--with-usage` types don't: CloudFront
+is a global service, so its CloudWatch metrics only ever exist in the
+`us-east-1` region's CloudWatch API (regardless of the infrastructure's
+own pricing region), and every CloudFront metric needs a fixed
+`Region=Global` dimension alongside `DistributionId` — both handled
+automatically. The existing per-GB data-transfer-out rate this refines
+covers `BytesDownloaded` only, matching the flat heuristic it replaces —
+`Requests` and CloudFront's real edge-location price-class tiering
+aren't modeled.
+
+Amazon Managed Service for Prometheus' fully-managed collector
+(`aws_prometheus_scraper`/`AWS::APS::Scraper`) is priced at its real flat
+per-hour rate — a single "managed collector" charge with no capacity
+attribute to size against. The workspace it scrapes into
+(`aws_prometheus_workspace`) is deliberately left unpriced rather than
+approximated: it has no capacity attribute either, and AWS publishes no
+CloudWatch metric at all for its storage size, so the real tiered
+ingestion/storage/query billing can't be measured or declared, only
+guessed — and this tool doesn't guess.
+
+AWS M2/Mainframe Modernization (`aws_m2_environment`/
+`AWS::M2::Environment`) is priced by each environment's real declared
+`instance_type` × `engine_type` (Enterprise Server/Micro Focus and Blu Age
+Runtime are genuinely priced ~18x apart per vCPU, not a typo), multiplied
+by `high_availability_config.desired_capacity`'s real declared instance
+count — defaulting to 1 the same way a real M2 environment with no HA
+config does. The externally-provisioned EFS/FSx storage an environment can
+attach isn't priced here; that capacity belongs to those resources' own
+separate AWS charge, not M2's. Note this is a service AWS closed to new
+customers on 2025-11-07 — still fully priced for existing customers'
+infrastructure, whose bulk rates remain live.
+
 ## FinOps recommendations
 
 Every dollar figure is computed by re-pricing the actual resource against
@@ -523,9 +733,10 @@ telemetry needed, no AWS account needed):
   figure on **Pro** when the catalog has a matching rate for that specific
   size (Graviton coverage in the published catalog is narrower than x86's —
   a size with no matching rate is silently skipped, same as any other
-  repricing rule); Free sees an unquantified ~20-40% nudge instead. Not
-  applied to ElastiCache — it's priced from a flat representative rate, not
-  per instance type, so a family swap there would never change the number.
+  repricing rule); Free sees an unquantified ~20-40% nudge instead. Not yet
+  applied to ElastiCache — real-per-node-type pricing landed, but this
+  rule's family-swap logic still needs a follow-up to parse ElastiCache's
+  composed `<node_type>_<engine>` instance-type format.
 - **RDS Multi-AZ** — flags the doubled compute cost, asking you to confirm
   HA is genuinely needed.
 - **RDS backup retention above 30 days** — re-priced at the 30-day cap.
@@ -615,10 +826,13 @@ directly, on that same run, when a shown figure still rests on the
 assumed default rather than a real number — the disclosure lives next to
 the number itself, not just in this README.
 
-On **Pro**, `--with-usage` (below) goes one step further for Lambda
-specifically: it replaces even a `--usage` file's declared volume with
-what a *real, already-deployed* function's CloudWatch metrics show it
-actually did.
+On **Pro**, `--with-usage` (below) goes one step further for Lambda,
+DataSync, API Gateway, Kinesis Video Streams, Aurora DSQL, Direct-PUT
+Kinesis Firehose, SQS, and CloudFront specifically: it replaces even a
+`--usage` file's declared volume with what a *real, already-deployed*
+resource's CloudWatch metrics show it actually did — see the
+[Usage-aware FinOps](#usage-aware-finops---with-usage) section below for
+exactly which real metric each one uses.
 
 ## Custom price books
 
@@ -725,17 +939,34 @@ as before (a printed note, never a failure).
   message (Spot capacity can be reclaimed with two minutes' notice) — this
   tool has no way to know if your workload tolerates that, so it never
   hides the tradeoff.
-- **Real Lambda cost correction** — unlike the two recommendations above,
-  this corrects the cost tree's own headline number, not just a FinOps
-  suggestion alongside it. For a Lambda function CloudWatch has data for,
-  its real `Invocations` (14-day total, scaled to a monthly rate) and
-  average `Duration` replace whatever a `--usage` file declared, or the
-  assumed default — the same real-vs-guessed gap
-  [above](#real-usage-volume---usage-file), just backed by measurement
-  instead of a declaration. EC2/RDS CloudWatch data stays
-  recommendation-only, deliberately: an EC2 instance's on-demand rate is
-  already a hard catalog fact, not a volume guess the way Lambda's
-  declared cost is.
+- **Real usage-based cost correction** (Lambda, DataSync, API Gateway,
+  Kinesis Video Streams, Aurora DSQL, Kinesis Firehose, SQS, CloudFront)
+  — unlike the two recommendations above, this corrects the cost tree's
+  own headline number, not just a FinOps suggestion alongside it. Each
+  type gets its own real CloudWatch metric in place of a `--usage`
+  file's declared volume or the assumed default — the same
+  real-vs-guessed gap [above](#real-usage-volume---usage-file), just
+  backed by measurement: Lambda's `Invocations`/`Duration`; DataSync's
+  (Basic mode) and Kinesis Video Streams' `BytesTransferred`/
+  `PutMedia.IncomingBytes` (neither has an assumed-default fallback at
+  all, so this is what turns a `[Not available]` into a real number, not
+  just a correction to an already-real one); API Gateway's `Count` (AWS
+  scopes this differently between REST and HTTP APIs — by the declared
+  `name` vs. the `id` — which this tool resolves automatically); Aurora
+  DSQL's `TotalDPU` plus, additively, its live `ClusterStorageSize` (the
+  one input on this whole list with no `--usage`-file counterpart, since
+  a live snapshot size can't be meaningfully pre-declared); Kinesis
+  Firehose's `IncomingBytes` (Direct-PUT-sourced streams only — a
+  KDS-sourced stream is already a hard $0, see above, not a volume guess
+  to refine); SQS's real `NumberOfMessagesSent` (with one documented
+  imprecision: AWS bills per API request, not per message, so a batching
+  application's real cost is understated by this metric — see above);
+  and CloudFront's real `BytesDownloaded` (its CloudWatch metrics only
+  exist in `us-east-1` regardless of the infrastructure's own pricing
+  region — handled automatically, not something you need to configure).
+  EC2/RDS CloudWatch data stays recommendation-only, deliberately: an
+  EC2 instance's on-demand rate is already a hard catalog fact, not a
+  volume guess the way every type in this list's declared cost is.
 - **Real `mixed_instances_policy` resolution** — another headline-number
   correction, not just a recommendation. An Auto Scaling Group using
   `mixed_instances_policy` has no single declared `instance_type` at all
@@ -1430,6 +1661,15 @@ one resource's change (the `-t`/`--target` flow), and "＋ Add to Scenario"
 others — "Run Scenario" then applies them all together in one combined
 report, the UI equivalent of `--scenario`. Re-staging a resource already in
 the list replaces its entry rather than duplicating it.
+
+An EC2 resource's "Instance type" field and an RDS/RDS-cluster resource's
+"Instance class" field open a native, searchable picker (VS Code's own
+QuickPick, filtering live as you type) instead of a plain dropdown — the
+real catalogs are large (1,300+ EC2 instance types, 250+ RDS instance
+classes) and a dropdown that size doesn't scroll well or filter at all. The
+list itself comes from a small internal `cloudcosttree list-instance-types`
+CLI command that reads the real, currently-priced set straight out of your
+resolved price catalog — never a hardcoded subset.
 
 "Generate File (Pro)" materializes whichever what-if (single or scenario)
 is currently showing as real file(s) via `--write-changes` — a new,
