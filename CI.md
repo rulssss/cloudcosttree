@@ -3,20 +3,25 @@
 CloudCostTree has a dedicated `ci` command group built for pipelines instead
 of a human terminal: JSON on stdout by default, a rich Markdown summary
 published automatically wherever the pipeline supports it, GitHub Actions
-annotations on policy violations, and a 0/1/2 exit-code convention a build
-can gate on.
+annotations on policy violations, a 0/1/2 exit-code convention a build can
+gate on, and a `comment` subcommand that posts (and updates in place, on
+later runs) a real PR/MR comment on GitHub, GitLab, Azure Repos, or
+Bitbucket directly from the binary — no separate `gh`/`curl`/`jq` script
+required.
 
 ```
-cloudcosttree ci report <infrastructure_file>   # cost report only, never fails the build
-cloudcosttree ci check  <infrastructure_file>   # cost report + policy checks, fails on violations
-cloudcosttree ci diff   <baseline> <current>    # same as check, comparing base branch vs. PR branch
+cloudcosttree ci report  <infrastructure_file>              # cost report only, never fails the build
+cloudcosttree ci check   <infrastructure_file>               # cost report + policy checks, fails on violations
+cloudcosttree ci diff    <baseline> <current>                 # same as check, comparing base branch vs. PR branch
+cloudcosttree ci comment <platform> <infrastructure_file>     # same report, posted as a PR/MR comment
 ```
 
-Run `cloudcosttree ci --help` for the full flag reference. This document
-covers wiring those three commands into GitHub Actions, GitLab CI, Azure
-Pipelines, and Bitbucket Pipelines — GitLab, Azure, and Bitbucket all post
-(and update in place, on later runs) a real PR/MR comment, not just log
-output, the same as the GitHub Action does.
+Run `cloudcosttree ci --help` (or `cloudcosttree ci comment --help`) for the
+full flag reference. This document covers wiring these commands into GitHub
+Actions, GitLab CI, Azure Pipelines, and Bitbucket Pipelines — GitLab,
+Azure, and Bitbucket all post (and update in place, on later runs) a real
+PR/MR comment via `ci comment`, not just log output, the same as the GitHub
+Action does.
 
 - [Quick start (GitHub Actions)](#quick-start-github-actions)
 - [The `ci` command group](#the-ci-command-group)
@@ -129,14 +134,64 @@ evaluated against `current` only (the state the PR is proposing), and the
 report shows the cost delta between the two. The exit-code table above
 applies identically.
 
+### `ci comment`
+
+```
+cloudcosttree ci comment <github|gitlab|azure|bitbucket> <infrastructure_file> [options]
+cloudcosttree ci comment <platform> <baseline_file> <current_file> [options]
+cloudcosttree ci comment <platform> <current_file> -baseline <baseline_file> [options]
+```
+
+The same report+policy computation as `ci check` (one file) or `ci diff`
+(two files / `-baseline`), posted directly as a PR/MR comment instead of
+left for the pipeline script to publish itself — the built-in equivalent of
+the curl/jq blocks earlier revisions of this document asked every
+GitLab CI/Azure Pipelines/Bitbucket Pipelines job to hand-roll. GitHub
+Actions jobs can use this too (handy on a self-hosted runner without `gh`
+preinstalled), though the [quick-start Action](#quick-start-github-actions)
+already posts via `gh pr comment` with nothing extra to configure.
+
+Every flag needed to identify *which* PR/MR to comment on and how to
+authenticate falls back to the environment variable that platform's CI
+system already sets automatically — inside a real pipeline run, only
+`-token` (and, on Azure, enabling **Allow scripts to access the OAuth
+token** under the pipeline's Settings, same as the manual example further
+down) ever needs wiring by hand:
+
+| Flag | Platform | Falls back to |
+| --- | --- | --- |
+| `-token` | all | `$GITHUB_TOKEN` / `$GITLAB_TOKEN` / `$SYSTEM_ACCESSTOKEN` / `$BITBUCKET_STEP_OAUTH_TOKEN` |
+| `-pull-request` | all | the PR/MR/thread ID from that platform's own CI environment (GitHub Actions' event payload, `$CI_MERGE_REQUEST_IID`, `$SYSTEM_PULLREQUEST_PULLREQUESTID`, `$BITBUCKET_PR_ID`) |
+| `-github-repo` | GitHub | `$GITHUB_REPOSITORY` |
+| `-gitlab-project`, `-gitlab-url` | GitLab | `$CI_PROJECT_ID`, `$CI_API_V4_URL` (else `https://gitlab.com/api/v4`) |
+| `-azure-org-url`, `-azure-project`, `-azure-repo` | Azure | `$SYSTEM_COLLECTIONURI`, `$SYSTEM_TEAMPROJECT`, `$BUILD_REPOSITORY_NAME` |
+| `-bitbucket-workspace`, `-bitbucket-repo` | Bitbucket | `$BITBUCKET_WORKSPACE`, `$BITBUCKET_REPO_SLUG` |
+
+`-behavior` controls what happens when a previous CloudCostTree comment
+(recognized by the same hidden `<!-- cloudcosttree-report -->` marker `ci
+report`/`ci check`/`ci diff`'s Step Summary output uses) is already on the
+PR/MR:
+
+| Behavior | Effect |
+| --- | --- |
+| `update` (default) | Edit the existing comment in place, or create one if none exists yet — one CloudCostTree comment per PR/MR across every run. |
+| `new` | Always post a fresh comment, leaving any previous one (and its now-stale numbers) untouched. |
+| `delete-and-new` | Remove every previous CloudCostTree comment first, then post a new one — a fresh notification instead of a silent edit, without piling up history. |
+
+Everything else — `-prices`/`-params`/`-policies`/`-max-monthly-cost`,
+`-format` for the primary stdout result, `-export`, the Step Summary
+write, and the exit-code convention — is identical to `ci check`/`ci diff`
+above. A failure to reach the platform's API (bad token, network error) is
+a hard error (exit `1`), separate from the policy-verdict exit codes.
+
 ### Outputs
 
-All three commands, uniformly:
+All four commands, uniformly:
 
 - **Stdout**: JSON by default — the exact same structured document
   `--export json` on the plain `tree`/`diff` commands produces, so anything
-  that already parses that shape works here too. `ci check`/`ci diff` wrap
-  it in a small envelope:
+  that already parses that shape works here too. `ci check`/`ci diff`/`ci
+  comment` wrap it in a small envelope:
 
   ```json
   {
@@ -154,7 +209,7 @@ All three commands, uniformly:
   Markdown report — collapsible tables and all — is appended there. This is
   a no-op, not an error, outside GitHub Actions.
 
-- **GitHub Actions annotations**: `ci check`/`ci diff` print one
+- **GitHub Actions annotations**: `ci check`/`ci diff`/`ci comment` print one
   `::warning::`/`::error::` line per policy violation when
   `GITHUB_ACTIONS=true` (set automatically by every GitHub-hosted or
   self-hosted Actions runner) — these render as inline markers on the PR's
@@ -248,20 +303,35 @@ the CLI up by hand:
   run: exit 1
 ```
 
+That example only gates the build; it doesn't post anything. On a runner
+without `gh` preinstalled (self-hosted runners aren't guaranteed to have
+it, unlike GitHub-hosted ones), swap the `run:` step for [`ci comment
+github`](#ci-comment) instead — it reads `$GITHUB_TOKEN` and the PR number
+from the same environment GitHub Actions already sets, so only `env:
+GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` needs adding:
+
+```yaml
+- name: Enforce cost & governance policies, post as a PR comment
+  run: cloudcosttree ci comment github ./infra -policies policies.yaml
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
 ## GitLab CI
 
 GitLab sets `CI=true` and `GITLAB_CI=true` on every job automatically, so
 `cloudcosttree` already detects it (colors off, structured output). There's
 no GitLab equivalent of `$GITHUB_STEP_SUMMARY`, so publish the report as a
-job artifact and, optionally, post it as a merge request comment via
-GitLab's REST API — updating that same comment on every later pipeline run
-for the same MR instead of piling up a new one each time, the same
-update-in-place behavior the GitHub Action gets for free from `gh pr
-comment --edit-last`. GitLab's plain REST API has no built-in "edit my last
-comment" concept, so this looks up any existing note containing
-CloudCostTree's hidden marker (`<!-- cloudcosttree-report -->`, always the
-first line of a `pr-comment` export) and `PUT`s to it instead of `POST`ing
-a new one when it finds one.
+job artifact; for the merge request comment itself, use
+[`ci comment gitlab`](#ci-comment) — it already reads `$CI_PROJECT_ID`,
+`$CI_MERGE_REQUEST_IID`, and `$CI_API_V4_URL` (all set automatically on a
+merge-request pipeline), needing only a `$GITLAB_TOKEN` CI/CD variable
+(a project access token with `api` scope, configured once) to authenticate.
+It finds and updates CloudCostTree's own previous note on later runs
+instead of piling up a new one every time — GitLab's plain REST API has no
+built-in "edit my last comment" concept, so this is exactly the
+find-by-hidden-marker-then-`PUT` logic a hand-written script would
+otherwise need, just already built in.
 
 ```yaml
 stages:
@@ -278,7 +348,7 @@ cost-guard:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   before_script:
-    - apk add --no-cache curl jq
+    - apk add --no-cache curl
     - |
       tag="$CLOUDCOSTTREE_RELEASE"
       if [ "$tag" = "latest" ]; then
@@ -290,30 +360,11 @@ cost-guard:
     # Optional, Pro: set CLOUDCOSTTREE_LICENSE_KEY as a masked CI/CD
     # variable to get Pro entitlement confirmed live on every run — no
     # per-machine activation seat spent doing it.
+    #
+    # Required for the merge request comment below: a project access token
+    # with `api` scope, as a masked CI/CD variable named GITLAB_TOKEN.
   script:
-    - cloudcosttree ci check "$INFRA_PATH" -policies "$POLICIES_PATH" -prices prices.json -export pr-comment:cost-report.md > cost-report.json; echo "CT_EXIT=$?" >> ct.env
-    - cat cost-report.json
-    - |
-      # Post as a merge request comment, updating CloudCostTree's own
-      # previous note (found via its hidden marker) instead of adding a new
-      # one every run. Needs a project access token with `api` scope in
-      # $GITLAB_TOKEN — a CI/CD variable you configure once.
-      if [ -n "$GITLAB_TOKEN" ] && [ -n "$CI_MERGE_REQUEST_IID" ]; then
-        notes_url="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes"
-        existing_id=$(curl --silent --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" "${notes_url}?per_page=100" \
-          | jq -r '[.[] | select(.body | startswith("<!-- cloudcosttree-report -->"))][0].id // empty')
-        if [ -n "$existing_id" ]; then
-          curl --silent --request PUT \
-            --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-            --data-urlencode "body@cost-report.md" \
-            "${notes_url}/${existing_id}" > /dev/null
-        else
-          curl --silent --request POST \
-            --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
-            --data-urlencode "body@cost-report.md" \
-            "${notes_url}" > /dev/null
-        fi
-      fi
+    - cloudcosttree ci comment gitlab "$INFRA_PATH" -policies "$POLICIES_PATH" -prices prices.json > cost-report.json; echo "CT_EXIT=$?" >> ct.env
     - source ct.env
     - if [ "$CT_EXIT" = "2" ]; then echo "Blocking policy violations found."; exit 1; fi
     - if [ "$CT_EXIT" = "1" ]; then echo "Only non-blocking (warn) violations — not failing the pipeline."; fi
@@ -321,22 +372,23 @@ cost-guard:
     when: always
     paths:
       - cost-report.json
-      - cost-report.md
 ```
 
 ## Azure Pipelines
 
 Azure Pipelines sets `TF_BUILD=True` on every run, which `cloudcosttree`
 also detects. Use `##vso[task.logissue ...]` logging commands (Azure's
-equivalent of GitHub's annotations) and `##vso[task.setvariable ...]` to
-carry the exit code between steps. Posting the report as an actual PR
-comment (an Azure Repos "PR thread") needs the pipeline's own OAuth token —
-enable **Allow scripts to access the OAuth token** under this pipeline's
-Settings first (off by default), which exposes it as `$(System.AccessToken)`
-with no separate PAT/secret to create or rotate. Same idempotent-update
-behavior as the GitLab example: looks for an existing thread whose first
-comment carries CloudCostTree's hidden marker and adds a new comment to
-that thread instead of opening a new one every run.
+equivalent of GitHub's annotations) for the fail/warn notices below. Posting
+the report as an actual PR comment (an Azure Repos "PR thread") needs the
+pipeline's own OAuth token — enable **Allow scripts to access the OAuth
+token** under this pipeline's Settings first (off by default). Azure
+auto-populates env vars for most of what [`ci comment
+azure`](#ci-comment) needs (`SYSTEM_COLLECTIONURI`, `SYSTEM_TEAMPROJECT`,
+`BUILD_REPOSITORY_NAME`, `SYSTEM_PULLREQUEST_PULLREQUESTID`), but not the
+OAuth token itself (`System.AccessToken` has no automatic env-var mapping)
+— that one still needs mapping by hand, below. It finds and replies to
+CloudCostTree's own previous thread on later runs instead of opening a new
+one every time.
 
 ```yaml
 trigger: none
@@ -370,40 +422,16 @@ steps:
   # per-machine activation seat spent doing it.
   - script: |
       set +e
-      cloudcosttree ci check $(INFRA_PATH) -policies $(POLICIES_PATH) -prices $(Agent.TempDirectory)/prices.json -export pr-comment:$(Agent.TempDirectory)/cost-report.md
+      cloudcosttree ci comment azure $(INFRA_PATH) -policies $(POLICIES_PATH) -prices $(Agent.TempDirectory)/prices.json
       echo "##vso[task.setvariable variable=exitCode]$?"
-    displayName: "Enforce cost & governance policies"
-
-  - script: |
-      # Only meaningful on a PR build, and only if the OAuth token was
-      # enabled (see this section's intro) — silently skipped otherwise so
-      # a repo that hasn't opted in still gets the log annotations below.
-      if [ -z "$(System.PullRequest.PullRequestId)" ] || [ -z "$SYSTEM_ACCESSTOKEN" ]; then
-        echo "Skipping PR comment (not a PR build, or OAuth token not enabled)."
-        exit 0
-      fi
-      auth="Authorization: Bearer $SYSTEM_ACCESSTOKEN"
-      base="$(System.CollectionUri)$(System.TeamProject)/_apis/git/repositories/$(Build.Repository.Name)/pullRequests/$(System.PullRequest.PullRequestId)/threads"
-      body=$(jq -Rs '.' < "$(Agent.TempDirectory)/cost-report.md")
-
-      existing_thread=$(curl --silent --header "$auth" "${base}?api-version=7.1" \
-        | jq -r '[.value[] | select(.comments[0].content // "" | startswith("<!-- cloudcosttree-report -->"))][0].id // empty')
-
-      if [ -n "$existing_thread" ]; then
-        curl --silent --request POST \
-          --header "$auth" --header "Content-Type: application/json" \
-          --data "{\"content\": ${body}, \"commentType\": 1, \"parentCommentId\": 1}" \
-          "${base}/${existing_thread}/comments?api-version=7.1" > /dev/null
-      else
-        curl --silent --request POST \
-          --header "$auth" --header "Content-Type: application/json" \
-          --data "{\"comments\": [{\"content\": ${body}, \"commentType\": 1}], \"status\": 1}" \
-          "${base}?api-version=7.1" > /dev/null
-      fi
     env:
+      # System.AccessToken has no automatic env-var mapping (unlike the
+      # System.CollectionUri/System.TeamProject/Build.Repository.Name/
+      # System.PullRequest.PullRequestId variables ci comment reads on its
+      # own) — it only becomes usable once mapped explicitly here, and only
+      # once "Allow scripts to access the OAuth token" is enabled above.
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: "Post analysis as a PR comment"
-    condition: always()
+    displayName: "Enforce cost & governance policies, post as a PR comment"
 
   - script: |
       echo "##vso[task.logissue type=error]CloudCostTree found blocking policy violations."
@@ -416,16 +444,24 @@ steps:
     displayName: "Note non-blocking warnings"
 ```
 
+On a non-PR build (no `System.PullRequest.PullRequestId`, e.g. a push to
+main), `ci comment` fails outright with a "missing pull request" error
+instead of silently skipping the comment step — add a `condition:
+eq(variables['Build.Reason'], 'PullRequest')` on the "Enforce cost &
+governance policies" step above if this pipeline also runs on non-PR
+triggers.
+
 ## Bitbucket Pipelines
 
 Bitbucket Pipelines sets `CI=true` on every run, which `cloudcosttree`
 already detects. Unlike GitLab/Azure Pipelines above, posting a PR comment
 here needs no separate token or pipeline setting at all: every Bitbucket
 Pipelines run gets a repository-scoped OAuth token for free in
-`$BITBUCKET_STEP_OAUTH_TOKEN`, good enough to comment on the pull request
-that triggered the run. Same idempotent-update behavior as the other two:
-looks for an existing comment carrying CloudCostTree's hidden marker and
-updates it (via `PUT`) instead of adding a new one (`POST`) every run.
+`$BITBUCKET_STEP_OAUTH_TOKEN`, which [`ci comment
+bitbucket`](#ci-comment) already reads by default, good enough to comment
+on the pull request that triggered the run. It finds and updates
+CloudCostTree's own previous comment on later runs instead of adding a new
+one every time.
 
 ```yaml
 pipelines:
@@ -435,7 +471,7 @@ pipelines:
           name: Cost & policy check
           image: alpine:3.20
           script:
-            - apk add --no-cache curl jq
+            - apk add --no-cache curl
             - |
               tag="latest"
               if [ "$tag" = "latest" ]; then
@@ -448,32 +484,12 @@ pipelines:
             # repository variable to get Pro entitlement confirmed live on
             # every run — no per-machine activation seat spent doing it.
             - set +e
-            - cloudcosttree ci check infra -policies policies.yaml -prices prices.json -export pr-comment:cost-report.md
+            - cloudcosttree ci comment bitbucket infra -policies policies.yaml -prices prices.json > cost-report.json
             - export CT_EXIT=$?
-            - |
-              auth="Authorization: Bearer $BITBUCKET_STEP_OAUTH_TOKEN"
-              base="https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}/pullrequests/${BITBUCKET_PR_ID}/comments"
-              body=$(jq -Rs '.' < cost-report.md)
-
-              existing_id=$(curl --silent --header "$auth" "${base}?pagelen=100" \
-                | jq -r '[.values[] | select(.content.raw // "" | startswith("<!-- cloudcosttree-report -->"))][0].id // empty')
-
-              if [ -n "$existing_id" ]; then
-                curl --silent --request PUT \
-                  --header "$auth" --header "Content-Type: application/json" \
-                  --data "{\"content\": {\"raw\": ${body}}}" \
-                  "${base}/${existing_id}" > /dev/null
-              else
-                curl --silent --request POST \
-                  --header "$auth" --header "Content-Type: application/json" \
-                  --data "{\"content\": {\"raw\": ${body}}}" \
-                  "${base}" > /dev/null
-              fi
             - if [ "$CT_EXIT" = "2" ]; then echo "Blocking policy violations found."; exit 1; fi
             - if [ "$CT_EXIT" = "1" ]; then echo "Only non-blocking (warn) violations — not failing the pipeline."; fi
           artifacts:
             - cost-report.json
-            - cost-report.md
 ```
 
 ## Terraform Cloud / Atlantis
@@ -536,13 +552,16 @@ normally add are already covered generically:
 The one piece that's genuinely platform-specific is posting the result as
 a PR/MR comment — and that's determined by **where your code is hosted**
 (GitHub, GitLab, Bitbucket, ...), not by which CI system is running the
-job. A Jenkins job building a GitHub-hosted repo posts a PR comment the
-same way the GitHub Actions example does (`gh pr comment`, with a `GITHUB_TOKEN`
-supplied as a Jenkins credential instead of the Action's automatic one); a
-CircleCI job building a GitLab-hosted repo follows the GitLab CI example's
-REST API calls verbatim. Use whichever of the four walkthroughs above
-matches your **git host**, not your CI system, and swap only the
-install/trigger boilerplate for your platform's own syntax.
+job. [`ci comment <platform>`](#ci-comment) already handles all four, so a
+Jenkins job building a GitHub-hosted repo runs `cloudcosttree ci comment
+github` with a `GITHUB_TOKEN` supplied as a Jenkins credential (mapped to
+the `GITHUB_TOKEN` env var) instead of Actions' automatic one; a CircleCI
+job building a GitLab-hosted repo runs `cloudcosttree ci comment gitlab`
+the same way, with `$GITLAB_TOKEN`/`$CI_PROJECT_ID`/`$CI_MERGE_REQUEST_IID`
+set as that CI system's own environment/context variables mirroring
+GitLab's. Use whichever of the four `ci comment` platform names matches
+your **git host**, not your CI system, and swap only the install/trigger
+boilerplate for your platform's own syntax.
 
 ## CI detection and colored output
 

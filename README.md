@@ -421,7 +421,18 @@ Transfer Family, AWS Direct Connect (dedicated connections, priced per
 bandwidth), Amazon ECR (repository storage), Amazon Managed Workflows for
 Apache Airflow (MWAA, priced as the sum of an environment's
 Environment/Scheduler/WebServer/Worker components), AWS Certificate
-Manager Private CA (General-Purpose mode), FSx for Lustre/OpenZFS/NetApp
+Manager Private CA (General-Purpose mode), AWS Certificate Manager public
+certificate export (`aws_acm_certificate`'s `options.export = "ENABLED"` —
+a real, separate charge AWS introduced in 2026 for exporting a public
+certificate's private key, confirmed against the real bulk price list at
+$7.00/standard FQDN and $79.00/wildcard domain name — notably different
+from the $15/$149 figures circulating secondhand at the time this was
+implemented; billed once at issuance and
+again at each renewal per AWS's own pricing page, amortized here into a
+monthly figure over that ~13-month cycle; counted per distinct FQDN across
+`domain_name` + `subject_alternative_names`, standard vs. wildcard rated
+separately; correctly $0 for Private-CA-issued certificates, which bill
+under ACM Private CA's own SKUs instead), FSx for Lustre/OpenZFS/NetApp
 ONTAP (Persistent/Single-AZ SSD baseline), Kinesis Data Analytics v2 (priced at the single-KPU
 minimum every application runs at least, same "documented floor" posture as
 Lambda/SQS/SNS below), AWS App Runner (priced at an assumed 1 vCPU/2GB
