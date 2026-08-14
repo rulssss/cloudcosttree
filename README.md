@@ -28,6 +28,20 @@ my-infra.tf ($842.13/mo)
 💡 FinOps: aws_instance.web is oversized for its CPU utilization — consider t3.small ($15.18/mo, saves $15.19/mo)
 ```
 
+## Quick start
+
+```
+$ cloudcosttree demo
+```
+
+No files of your own, no AWS account: `cloudcosttree demo` runs a small
+bundled example through this tool's real pricing and FinOps engine — the
+same rules and rates a real file gets — so there's something to see in
+under a minute before pointing this at your own infrastructure. The VS
+Code extension offers the same thing as a one-time "Run Demo" prompt on
+first activation (dismissible, never runs automatically without a click —
+see [VS Code extension](#vs-code-extension) below).
+
 ## Who this is for
 
 CloudCostTree is for anyone who wants to question a plan's cost impact
@@ -64,6 +78,7 @@ full, honest list of what that covers and why.
 
 ## Table of contents
 
+- [Quick start](#quick-start)
 - [Who this is for](#who-this-is-for)
 - [Known limitations at a glance](#known-limitations-at-a-glance)
 - [Install](#install)
@@ -150,7 +165,8 @@ refresh.
 ## Commands
 
 ```
-cloudcosttree <infrastructure_file> [options]                       # tree view
+cloudcosttree demo                                                   # bundled example, no files or AWS account needed
+cloudcosttree <infrastructure_file> [options]                        # tree view
 cloudcosttree analyze <infrastructure_file> [what-if flags] [options] # what-if simulation, FinOps, policies
 cloudcosttree diff <baseline_file> <current_file> [options]          # compare two states
 cloudcosttree update-prices [options]                                # refresh the AWS price catalog (no AWS account)
@@ -1693,6 +1709,13 @@ unlike the normal desktop `license activate` flow.
 what-if panel, and diff view on top of the same CLI (every number comes
 from a real `cloudcosttree analyze --export json:-` call, no re-implemented
 pricing/parsing logic) — see its own README for setup.
+
+The first time the extension activates on a given machine, a one-time,
+dismissible notification offers "Run Demo" — the same bundled example the
+CLI's own `cloudcosttree demo` runs, opened in the panel with zero files or
+AWS account needed. Never auto-runs without a click; shown at most once
+(tracked in `context.globalState`), and always reachable afterward via the
+Command Palette ("CloudCostTree: Run Demo").
 
 The what-if panel mirrors both CLI what-if modes: "Apply What-If" previews
 one resource's change (the `-t`/`--target` flow), and "＋ Add to Scenario"
