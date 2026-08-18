@@ -288,9 +288,10 @@ Auto-detected regardless of file extension:
   tool at all. AWS-only, not a multi-cloud move: every `Deployment`/
   `StatefulSet` document's real declared `resources.requests` (summed
   across every container, init containers excluded) is priced against real
-  AWS Fargate per-vCPU/per-GB rates, not the fixed 0.25vCPU/0.5GB assumed
-  baseline `ecs_service`/`ecs_task_definition`/`eks_fargate_profile` use
-  elsewhere in this table, since the real requested size is right there in
+  AWS Fargate per-vCPU/per-GB rates, same real-size pricing Terraform's own
+  `aws_ecs_task_definition`/`aws_ecs_service` now get too (see below) — the
+  fixed 0.25vCPU/0.5GB assumed baseline is now only `eks_fargate_profile`'s,
+  since the real requested size is right there in
   the manifest. A declared request is rounded up to the nearest size AWS
   Fargate actually bills (its own published vCPU/memory combination table,
   never scaled linearly against an arbitrary value AWS would never accept).
@@ -329,7 +330,9 @@ S3 buckets, EFS file systems, DynamoDB tables (provisioned RCU/WCU with
 table-class multiplier, or on-demand; Global Tables' replicated write
 capacity, a real, separate AWS charge billed per additional replica
 region, on top of the table's own base WCU), NAT Gateway (fixed rate + data
-processed), Elastic IPs, ELB/ALB/NLB/GWLB, EKS clusters, AWS Verified
+processed), Transit Gateway (fixed per-attachment rate + data processed,
+declarable via this tool's own schema the same way NAT Gateway's is),
+Elastic IPs, ELB/ALB/NLB/GWLB, EKS clusters, AWS Verified
 Access (priced per endpoint-hour, HTTP/HTTPS vs. non-HTTP `cidr` endpoints
 at their real, different AWS rates), VPC Lattice (priced per associated
 service-hour, the service network itself carries no separate AWS charge),
@@ -354,7 +357,13 @@ no confirmed real rate yet and is left unpriced), Redshift (priced by each
 cluster's real declared `node_type` × `number_of_nodes`, defaulting to 1
 node the same way Terraform's own schema does; not a flat ra3.large-only
 representative rate), Kinesis (Streams
-and Firehose), ECS/Fargate services and task definitions, RDS Proxy, Lambda
+and Firehose), ECS/Fargate services and task definitions (Terraform: priced
+by each Fargate task definition's own real declared `cpu`/`memory`,
+multiplied by the service's real `desired_count`, when
+`requires_compatibilities` is unambiguously `["FARGATE"]`; falls back to
+the flat 0.25vCPU/0.5GB baseline for an EC2-launch-type/mixed-compatibility
+task or for CloudFormation/Pulumi input, which read `desired_count` but
+don't yet resolve the task definition cross-reference), RDS Proxy, Lambda
 (invocations + GB-seconds), CloudFront, CloudWatch (Logs ingestion, custom
 metrics/alarms), API Gateway, GuardDuty, Security Hub, Config, CloudTrail,
 SQS, SNS, Route 53 (hosted zone, health check, flat AWS-endpoint base rate
@@ -742,6 +751,20 @@ property exists on `AWS::GuardDuty::Detector`, it's implicit to the
 stack's deploy target, not something a static template declares), so this
 refinement only activates for Terraform/Pulumi input.
 
+DynamoDB (`aws_dynamodb_table`) on-demand tables get a real, exact price
+from `--with-usage`'s live CloudWatch `ConsumedReadCapacityUnits`/
+`ConsumedWriteCapacityUnits` (or `monthly_dynamo_read_request_units`/
+`monthly_dynamo_write_request_units` in a `--usage` file), multiplied by
+AWS's real per-Read/Write-Request-Unit rate — not an estimate, the same
+metric names DynamoDB publishes under either billing mode, since
+on-demand's Request Units are defined identically to provisioned RCU/WCU
+consumption. Without either, an on-demand table still prices from the same
+flat assumed-baseline heuristic it always has (never a bare $0). This also
+fixed a real, unrelated bug found along the way: a *provisioned* table with
+real declared `dynamo_rcu`/`dynamo_wcu` was getting that same flat baseline
+added **on top of** its real capacity cost — a confirmed double-charge,
+now gone regardless of `--with-usage`.
+
 Amazon Managed Service for Prometheus' fully-managed collector
 (`aws_prometheus_scraper`/`AWS::APS::Scraper`) is priced at its real flat
 per-hour rate: a single "managed collector" charge with no capacity
@@ -797,8 +820,13 @@ telemetry needed, no AWS account needed):
 - **RDS backup retention above 30 days**: re-priced at the 30-day cap.
 - **NAT Gateway, low traffic**: compares the fixed hourly rate against a
   `t3.micro` NAT instance when monthly data processed is under 15GB.
-- **DynamoDB provisioned, high capacity**: suggests on-demand when
-  combined RCU+WCU is high, re-priced exactly (no RCU/WCU charge on-demand).
+- **DynamoDB provisioned, high capacity**: suggests on-demand when combined
+  RCU+WCU is high. This tool doesn't model on-demand's real per-request rate
+  yet, so the comparison is against a flat assumed-low-capacity baseline, not
+  your table's real traffic — a busy table running near its provisioned
+  RCU/WCU can genuinely cost *more* on-demand, so confirm your real
+  utilization before switching. Never auto-applied by `--optimize` for
+  exactly this reason.
 - **EC2 fleet without an Auto Scaling Group**: a `count > 1` resource with
   no ASG settings; informational (elasticity, not a quantified saving).
 - **Reserved Instance / Savings Plan candidate**: steady-state (no
@@ -868,7 +896,17 @@ resources:
     monthly_requests: 2000000
   aws_cloudfront_distribution.cdn:
     monthly_gb: 500
+  aws_lb.web:
+    avg_lcus: 25
 ```
+
+ALB/NLB/GWLB are a different shape from the purely usage-based types above:
+AWS bills them a flat per-hour attachment fee *plus* a real, separate
+per-LCU-hour charge (Load Balancer Capacity Units — driven by connections,
+bandwidth, and for ALB rule evaluations) that Terraform/CloudFormation/
+Pulumi can't know ahead of time either. `avg_lcus` declares your real
+average consumed LCUs; with no entry, only the flat attachment fee is
+priced, exactly as before this field existed.
 
 No file, or no entry for a given resource, changes nothing: the
 documented assumed volume applies exactly as it always has, so this is
@@ -883,7 +921,8 @@ the number itself, not just in this README.
 
 On **Pro**, `--with-usage` (below) goes one step further for Lambda,
 DataSync, API Gateway, Kinesis Video Streams, Aurora DSQL, Direct-PUT
-Kinesis Firehose, SQS, and CloudFront specifically: it replaces even a
+Kinesis Firehose, SQS, CloudFront, SNS, GuardDuty, and on-demand DynamoDB
+tables specifically: it replaces even a
 `--usage` file's declared volume with what a *real, already-deployed*
 resource's CloudWatch metrics show it actually did; see the
 [Usage-aware FinOps](#usage-aware-finops---with-usage) section below for
@@ -1361,21 +1400,25 @@ already confirmed is unused:
 
 - **Applied automatically**: gp2 → gp3 (EBS and RDS/RDS Cluster storage),
   provisioned IOPS (io1/io2) → gp3, previous-generation instance type →
-  current generation, RDS backup retention capped at 30 days, DynamoDB
-  provisioned → on-demand, non-production resources rescheduled to business
-  hours, and, under `--with-usage` (Pro), confirmed orphaned EBS
-  volumes/snapshots, confirmed empty-target-group load balancers, and
-  confirmed unassociated Elastic IPs (deleted, at their full cost).
+  current generation, RDS backup retention capped at 30 days,
+  non-production resources rescheduled to business hours, and, under
+  `--with-usage` (Pro), confirmed orphaned EBS volumes/snapshots, confirmed
+  empty-target-group load balancers, and confirmed unassociated Elastic IPs
+  (deleted, at their full cost).
 - **Offered, never auto-applied** (shown, but excluded from what
   `--optimize` runs, same "confirm this first" posture these already have
   in the plain FinOps list): x86 → Graviton (a CPU architecture change),
-  removing RDS Multi-AZ (a high-availability change), real CPU-based
-  right-sizing under `--with-usage` (a measured-but-inferred resize, with a
-  possible Reserved Instance stranding trade-off), and Lambda memory
-  right-sizing under `--with-usage` (a measured, real `--lambda-memory`
-  what-if change, but Lambda's CPU allocation scales with memory_size, so a
-  smaller function can run measurably slower, a trade-off worth confirming
-  before applying).
+  removing RDS Multi-AZ (a high-availability change), DynamoDB provisioned →
+  on-demand (this tool doesn't model on-demand's real per-request rate yet,
+  so the estimate compares against a flat assumed-low-capacity baseline
+  instead of your table's real traffic — a busy table can genuinely cost
+  more on-demand, so this always needs a human to confirm real utilization
+  first), real CPU-based right-sizing under `--with-usage` (a
+  measured-but-inferred resize, with a possible Reserved Instance stranding
+  trade-off), and Lambda memory right-sizing under `--with-usage` (a
+  measured, real `--lambda-memory` what-if change, but Lambda's CPU
+  allocation scales with memory_size, so a smaller function can run
+  measurably slower, a trade-off worth confirming before applying).
 - **Not representable as a single what-if change at all** (untouched,
   same as today): a Reserved Instance/Savings Plan candidate (a purchase
   decision, not an attribute), an EC2 fleet without an Auto Scaling Group, a
@@ -1864,6 +1907,7 @@ in `pkg/pricing/regions.go`):
 | RDS instance classes | ~19 curated | 251 discovered |
 | EC2 instance types | ~53 curated | 1,300+ discovered |
 | EMR instance types | 10 curated | 42 (every current-gen, non-burstable, ≥.xlarge EC2 type, EMR's own real minimum) |
+
 
 ## License
 
