@@ -385,9 +385,14 @@ Secrets Manager, MSK (Kafka: priced by each broker's real declared
 storage; not a flat representative-instance rate), OpenSearch/Elasticsearch
 (priced by each domain's real declared data-node `instance_type` ×
 `instance_count`; dedicated master nodes are a real, separate AWS charge
-not modeled), DocumentDB and
-Neptune (cluster instances only, the cluster resource itself has no
-separate AWS charge), Network Firewall, WAFv2 Web ACL, FSx for Windows File
+not modeled), Amazon DocumentDB (real per-instance-class rate, not a flat
+representative-instance figure; the cluster resource itself carries a real
+backup-storage surcharge when `backup_retention_period` is declared, its own
+separate rate from RDS's) and Neptune (cluster instances only, the cluster
+resource itself has no separate AWS charge), Network Firewall (billed per
+real declared `subnet_mapping` endpoint, not a flat single unit), Route53
+Resolver Endpoint (billed per real declared `ip_address` block, not a flat
+single unit), WAFv2 Web ACL, FSx for Windows File
 Server, AWS Lightsail (priced per bundle, General Purpose Linux bundles
 only), Amazon Lightsail Database (real per-bundle-tier monthly price:
 micro/small/medium/large, High Availability priced separately at its own
@@ -465,9 +470,10 @@ baseline configuration, same reasoning as ECS/Fargate below), Amazon
 ECR Public (repository storage), AWS Systems Manager Parameter Store
 (Advanced tier), Amazon Timestream for
 InfluxDB (priced per DB instance type), Amazon Kendra (index base
-capacity fee, Developer or Enterprise edition), Amazon EMR (master node + core instance fleet, each node priced
-at its EC2 rate plus EMR's own per-instance-hour markup fee; task instance
-groups and the instance-fleet configuration API aren't modeled, and a
+capacity fee, Developer or Enterprise edition), Amazon EMR (master node + core instance fleet + task instance
+groups (`aws_emr_instance_group`), each node priced
+at its EC2 rate plus EMR's own per-instance-hour markup fee; the
+instance-fleet configuration API isn't modeled, and a
 multi-master HA config's master group is still priced as a single node),
 Amazon MemoryDB for Redis/Valkey (priced per node type and engine, since
 engine changes the price for the same node type), AWS Managed Blockchain
@@ -486,11 +492,13 @@ shard_capacity x shard_count; storage/backup aren't modeled), and Amazon
 OpenSearch Serverless (an assumed 4 OCU floor: 2 indexing + 2 search,
 AWS's own documented minimum for a standard collection, since a
 collection has no capacity attribute of its own to read), AWS Database
-Migration Service (replication instance type, Single-AZ rate regardless of
-the resource's own multi_az setting), EC2 Capacity Reservations (priced at
-the same rate as a normal running On-Demand instance of that type, times
-instance_count, reuses the existing EC2 instance-type rates directly, no
-dedicated fetched rate needed), AWS CodePipeline (a flat $1/month fee per
+Migration Service (replication instance type, real Multi-AZ rate — a
+genuinely separate SKU, not a multiplier — when the resource's own
+`multi_az` is set), EC2 Capacity Reservations (priced at
+the same rate as a normal running On-Demand instance of that type — its
+real declared `instance_platform`/`tenancy` apply the same OS multiplier/
+dedicated-tenancy rate a plain EC2 instance of that type would get, times
+instance_count), AWS CodePipeline (a flat $1/month fee per
 active pipeline), and Amazon Redshift Serverless (its base_capacity RPU
 attribute, a real, already-declared value on the workgroup resource, so
 unlike Aurora/Neptune Serverless above this needs no assumed floor at all,
@@ -503,7 +511,11 @@ Gateway's FSx File Gateway type (`gateway_type = "FILE_FSX_SMB"`), and
 Amazon Kinesis Data Streams (real per-shard-hour rate x real declared
 `shard_count` for PROVISIONED-mode streams, or a separate real flat
 per-stream-hour rate for ON_DEMAND mode, a genuinely different billing
-model, not the same rate applied differently), Amazon CloudSearch (real
+model, not the same rate applied differently; a real declared
+`retention_period` above 24h adds the real extended-retention addon for
+the 24h-7day band) and Kinesis Stream Consumer/Enhanced Fan-Out
+(`aws_kinesis_stream_consumer`, its real shard count resolved from its
+`stream_arn` reference to the owning stream), Amazon CloudSearch (real
 per-search-instance-type rate), Amazon WorkMail (a flat per-user monthly
 fee), AWS Shield Advanced (a flat account-level monthly subscription fee),
 Amazon Athena Capacity Reservations (real per-DPU-hour rate x real
@@ -1907,7 +1919,6 @@ in `pkg/pricing/regions.go`):
 | RDS instance classes | ~19 curated | 251 discovered |
 | EC2 instance types | ~53 curated | 1,300+ discovered |
 | EMR instance types | 10 curated | 42 (every current-gen, non-burstable, ≥.xlarge EC2 type, EMR's own real minimum) |
-
 
 ## License
 
