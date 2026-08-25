@@ -1630,6 +1630,8 @@ Cost Score:         78/C -> 85/B (+7)
 
 ```
 cloudcosttree history save prod-2026-07 ./my-infra.tf
+cloudcosttree history save prod-2026-07 ./my-infra.tf --usage usage.yaml
+cloudcosttree history save prod-2026-07 ./my-infra.tf --with-usage
 cloudcosttree history list
 cloudcosttree history trend [-last <n>]
 cloudcosttree history compare <name-or-id> <name-or-id>
@@ -1641,7 +1643,13 @@ cloudcosttree history import <path>
 Snapshots a cost tree locally (no account, no upload) so you can compare
 cost (and [Cost Score](#cost-score)) over time the same way `diff`
 compares two files. 180-day retention, auto-pruned, disk hygiene, not a
-plan limit; identical on Free and Pro.
+plan limit; identical on Free and Pro. Saving with `--usage <path>` (see
+[Real usage volume](#real-usage-volume---usage-file) above) or `--with-usage`
+(live CloudWatch data, Pro — see [Usage-aware
+FinOps](#usage-aware-finops---with-usage) above) also records each
+usage-billed resource's real consumption in the snapshot, which `compare`
+can later attribute a delta to directly — see [Cost delta
+attribution](#cost-delta-attribution) below.
 
 While `compare` diffs two snapshots, `trend` reads every saved snapshot (or
 just the last N, via `-last`) and prints an ASCII sparkline of total
@@ -1673,24 +1681,34 @@ Changed (1):
   ~ web [ec2] (price change)          +$4.80/month
 ```
 
-- **`config change`**: the resource's instance type itself changed between
-  snapshots.
+- **`config change`**: the resource's instance type (or, for EBS/RDS-style
+  resources, its size) itself changed between snapshots.
 - **`price change`**: the instance type is identical, but the AWS price
   catalog was refreshed between the two `history save` runs (this tool's
   published catalog updates on its own ~15-day cadence, see
   [Install](#install)): the resource didn't change, its rate did.
+- **`usage change`**: for the resources AWS bills purely by consumption
+  (Lambda, SQS, SNS, API Gateway, CloudFront, ...), real usage moved between
+  snapshots enough to explain the delta on its own, with no config or
+  catalog change in play. Requires both snapshots to have been saved with
+  `history save --usage <path>` (see [Real usage
+  volume](#real-usage-volume---usage-file) above) or `--with-usage` (Pro) —
+  without one of those, these resources have no usage fingerprint recorded
+  and a real consumption
+  change falls back to unlabeled, same as before this bucket existed.
 - No label at all: the cause can't be determined (a snapshot saved before
-  this attribution existed, or a real change this MVP doesn't fingerprint
-  yet, like `size_gb`/`iops`). Never guessed; an unlabeled delta is exactly
-  as informative as before this feature existed, nothing is silently
+  this attribution existed, one or both saved without `--usage` for a
+  usage-billed resource, or a real change this tool doesn't fingerprint
+  yet, like `iops`). Never guessed; an unlabeled delta is exactly as
+  informative as before this feature existed, nothing is silently
   misattributed.
 
 When the catalog itself changed between the two snapshots being compared, a
 note above the resource list calls that out explicitly, since it affects
-how to read every `price change`-labeled line below it. This is a `config`
-vs. `price` MVP, not full three-way attribution: declared-volume/usage
-changes (a `--usage` file edit, or `--with-usage`'s real measured traffic)
-aren't distinguished from a config change yet.
+how to read every `price change`-labeled line below it. Config and price
+are checked first, so a resource whose usage moved *and* whose catalog
+also happened to refresh in the same window is still labeled `price change`
+— usage is a fallback attribution, not a competing one.
 
 ### Cost drift alerts in CI
 
