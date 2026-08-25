@@ -1830,6 +1830,15 @@ your own AWS account), then enriches Analyze/Compare the same way the CLI
 flag does; see the extension's own README for the consent/credential
 details.
 
+A "💾 Save Snapshot" button saves the current analysis as a `history save`
+snapshot with one click — no naming needed (`<file>-<date>-cct`,
+auto-generated). Asks whether to include real AWS usage data first (Pro;
+Free still saves, just without it). Snapshots land in the same
+`~/.cloudcosttree/history` the CLI's own `history save` uses, so `history
+list`/`compare`/`trend` from a terminal see them too — see [Cost delta
+attribution](#cost-delta-attribution) for what a saved usage snapshot
+unlocks in `compare`.
+
 ## Free vs Pro
 
 Free is a generous, unlimited cost-visibility tool for local use: Pro adds
