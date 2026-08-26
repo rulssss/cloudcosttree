@@ -98,6 +98,7 @@ full, honest list of what that covers and why.
 - [History](#history)
 - [Exports](#exports)
 - [CI/CD](#cicd)
+- [IAM policy generator](#iam-policy-generator)
 - [VS Code extension](#vs-code-extension)
 - [Free vs Pro](#free-vs-pro)
 - [Architecture](#architecture)
@@ -176,6 +177,7 @@ cloudcosttree ci report|check|diff                                   # CI/CD-fri
 cloudcosttree history save|list|trend|compare|delete|export|import   # track cost over time
 cloudcosttree license buy|activate|status                            # CloudCostTree Pro
 cloudcosttree guard -- terraform apply                               # local apply-time policy gate (not the CI Cost Guard workflow)
+cloudcosttree iam <path> [--plan plan.json] [--output json]          # least-privilege deployer IAM policy, no AWS account needed
 ```
 
 Run `cloudcosttree --help` (or `<command> --help`) for the full flag
@@ -1776,6 +1778,17 @@ local to count against); Pro is unlimited, confirmed live on every run via
 a `license-key` input, no per-machine activation seat is spent doing this,
 unlike the normal desktop `license activate` flow.
 
+## IAM policy generator
+
+```
+cloudcosttree iam ./infra/       # Terraform/CloudFormation/Pulumi -> least-privilege deployer policy
+```
+
+Not "what will this cost" but "what IAM permissions does deploying this
+need" — 359 resource types covered. Every policy uses `Resource: "*"` for
+now (Action list is real and scoped, resource-level ARN scoping isn't
+shipped yet). Free on both tiers.
+
 ## VS Code extension
 
 [vscode-extension/](vscode-extension/) adds an in-editor cost tree,
@@ -1830,6 +1843,10 @@ your own AWS account), then enriches Analyze/Compare the same way the CLI
 flag does; see the extension's own README for the consent/credential
 details.
 
+"🛡️ Generate IAM Policy" is the UI for [the `iam` command](#iam-policy-generator)
+above — no cost analysis needed first, click writes
+`<name>_cct-iam-policy.json` next to the input. Free on both tiers.
+
 A "💾 Save Snapshot" button saves the current analysis as a `history save`
 snapshot with one click — no naming needed (`<file>-<date>-cct`,
 auto-generated). Asks whether to include real AWS usage data first (Pro;
@@ -1860,6 +1877,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included: cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
 | Input format: Atmos (Cloud Posse) stacks | Not included | Included |
+| IAM policy generator (`iam`, 359 resource types, `Resource: "*"`) | Included | Included |
 | Cloud provider support | AWS | AWS |
 | VS Code extension | Included | Included |
 
