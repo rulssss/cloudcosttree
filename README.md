@@ -1785,7 +1785,7 @@ cloudcosttree iam ./infra/       # Terraform/CloudFormation/Pulumi -> least-priv
 ```
 
 Not "what will this cost" but "what IAM permissions does deploying this
-need" — 359 resource types covered. Every policy uses `Resource: "*"` for
+need" — 821 resource types covered. Every policy uses `Resource: "*"` for
 now (Action list is real and scoped, resource-level ARN scoping isn't
 shipped yet). Free on both tiers.
 
@@ -1877,7 +1877,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included: cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
 | Input format: Atmos (Cloud Posse) stacks | Not included | Included |
-| IAM policy generator (`iam`, 359 resource types, `Resource: "*"`) | Included | Included |
+| IAM policy generator (`iam`, 821 resource types, `Resource: "*"`) | Included | Included |
 | Cloud provider support | AWS | AWS |
 | VS Code extension | Included | Included |
 
