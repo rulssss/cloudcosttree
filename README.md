@@ -74,7 +74,12 @@ Viewer/Editor/Enterprise-Plugin user, and `aws_grafana_workspace` declares
 no user count to price against at all. Everything else this tool doesn't
 price is either genuinely free
 (a VPC, a security group) or just hasn't been mapped yet; see below for the
-full, honest list of what that covers and why.
+full, honest list of what that covers and why. The [IAM policy
+generator](#iam-policy-generator) has its own, separate coverage: 821
+resource types today, always with a real, correct `Action` list per type,
+but every `Resource` is currently `"*"` (scoped to the specific ARN(s) a
+deployment declares is planned, not shipped yet); an unmapped resource type
+shows up as a clearly labeled warning, never a silent gap.
 
 ## Table of contents
 
@@ -90,6 +95,8 @@ full, honest list of what that covers and why.
 - [Custom price books (every plan)](#custom-price-books)
 - [Real Reserved Instance savings (Pro)](#real-reserved-instance-savings)
 - [Usage-aware FinOps (`--with-usage`, Pro)](#usage-aware-finops---with-usage)
+- [Reconcile with your real bill (`--reconcile`, Pro)](#reconcile-with-your-real-bill)
+- [What CloudCostTree does not claim](#what-cloudcosttree-does-not-claim)
 - [What-if simulator](#what-if-simulator)
 - [Optimize (`--optimize`)](#optimize)
 - [Policies](#policies)
@@ -98,7 +105,7 @@ full, honest list of what that covers and why.
 - [History](#history)
 - [Exports](#exports)
 - [CI/CD](#cicd)
-- [IAM policy generator](#iam-policy-generator)
+- [IAM policy generator (`iam`)](#iam-policy-generator)
 - [VS Code extension](#vs-code-extension)
 - [Free vs Pro](#free-vs-pro)
 - [Architecture](#architecture)
@@ -177,7 +184,7 @@ cloudcosttree ci report|check|diff                                   # CI/CD-fri
 cloudcosttree history save|list|trend|compare|delete|export|import   # track cost over time
 cloudcosttree license buy|activate|status                            # CloudCostTree Pro
 cloudcosttree guard -- terraform apply                               # local apply-time policy gate (not the CI Cost Guard workflow)
-cloudcosttree iam <path> [--plan plan.json] [--output json]          # least-privilege deployer IAM policy, no AWS account needed
+cloudcosttree iam <path> [--plan <planfile>] [--output text|json]    # least-privilege IAM policy this deployment needs, no AWS account
 ```
 
 Run `cloudcosttree --help` (or `<command> --help`) for the full flag
@@ -196,8 +203,11 @@ all share the same general options:
 | `--usage <path>` | Declare real expected monthly traffic for request/GB/event-billed resources (Lambda, SQS, ...); see below. Every plan, no AWS account needed |
 | `--price-overrides <path>` | Apply your own negotiated/EDP discount on top of the published catalog; see [Custom price books](#custom-price-books) below. Every plan, no AWS account needed |
 | `--include-governance` | Also show governance-only FinOps findings (naming/tags) alongside real savings |
-| `--with-usage` | (`analyze` only, **Pro**) enrich with real CloudWatch utilization + live Spot pricing; see below |
-| `--stack-name <name>` | (`analyze` only, with `--with-usage`, CloudFormation input only, **Pro**) the deployed stack name, needed to resolve real resource IDs for a CloudFormation template; see below |
+| `--with-usage` | (`analyze` and `diff`, **Pro**) enrich with real CloudWatch utilization + live Spot pricing; see below. On `diff`, applied to the baseline and current file independently |
+| `--stack-name <name>` | (`analyze` and `diff`, with `--with-usage`, CloudFormation input only, **Pro**) the deployed stack name, needed to resolve real resource IDs for a CloudFormation template; see below. On `diff`, the same value is used for both files |
+| `--accounts <path>` | (`analyze` and `diff`, with `--with-usage`) multi-account role mapping; see [Multi-region and multi-account](#multi-region-and-multi-account---accounts) below |
+| `--reconcile` | (`analyze`, **Pro**) read what AWS actually billed over the last 14 days (Cost Explorer, your own read-only credentials) and show it next to the list-price estimate; see [Reconcile with your real bill](#reconcile-with-your-real-bill) below. Cost Explorer bills you $0.01/request, so results are cached ~12h |
+| `--reconcile-refresh` | (`analyze`, with `--reconcile`) ignore the cache and re-query Cost Explorer now |
 | `--scenario <path>` | (`analyze` only) Simulate changes to several resources at once from a YAML file; see [What-if simulator](#what-if-simulator) below |
 | `--optimize` | (`analyze` only) Auto-build and simulate a what-if scenario from the FinOps recommendations already shown, applying only the ones safe to apply mechanically; see [Optimize](#optimize) below |
 | `--write-changes <dir>` | (`analyze` only, **Pro**) Write a what-if simulation's result to a new file/directory, never the original; see [What-if simulator](#what-if-simulator) below |
@@ -340,9 +350,12 @@ at their real, different AWS rates), VPC Lattice (priced per associated
 service-hour, the service network itself carries no separate AWS charge),
 ElastiCache
 (single-node and Redis/Memcached/Valkey replication groups, priced by
-each node's real declared `node_type` × real node count, engine-aware
-since the same node type has a genuinely different rate per engine; not a
-flat cache.t3.micro/Redis-only representative rate) and ElastiCache
+each node's real declared `node_type` × real node count — including
+cluster-mode-enabled sharding's real `num_node_groups` ×
+`(1 + replicas_per_node_group)` total, not just the cluster-mode-disabled
+`num_cache_clusters` count — engine-aware since the same node type has a
+genuinely different rate per engine; not a flat cache.t3.micro/Redis-only
+representative rate) and ElastiCache
 Serverless
 (real per-engine ECPU-hour + GB-hour storage rates, Redis, Memcached, and
 Valkey are each genuinely priced differently; AWS's own real metering
@@ -360,12 +373,14 @@ cluster's real declared `node_type` × `number_of_nodes`, defaulting to 1
 node the same way Terraform's own schema does; not a flat ra3.large-only
 representative rate), Kinesis (Streams
 and Firehose), ECS/Fargate services and task definitions (Terraform: priced
-by each Fargate task definition's own real declared `cpu`/`memory`,
-multiplied by the service's real `desired_count`, when
-`requires_compatibilities` is unambiguously `["FARGATE"]`; falls back to
-the flat 0.25vCPU/0.5GB baseline for an EC2-launch-type/mixed-compatibility
-task or for CloudFormation/Pulumi input, which read `desired_count` but
-don't yet resolve the task definition cross-reference), RDS Proxy, Lambda
+by each Fargate task definition's own real declared `cpu`/`memory`, plus a
+real per-GB-hour surcharge for any declared `ephemeral_storage.size_in_gib`
+above the always-free 20GB baseline, multiplied by the service's real
+`desired_count`, when `requires_compatibilities` is unambiguously
+`["FARGATE"]`; falls back to the flat 0.25vCPU/0.5GB baseline for an
+EC2-launch-type/mixed-compatibility task or for CloudFormation/Pulumi
+input, which read `desired_count` but don't yet resolve the task
+definition cross-reference), RDS Proxy, Lambda
 (invocations + GB-seconds), CloudFront, CloudWatch (Logs ingestion, custom
 metrics/alarms), API Gateway, GuardDuty, Security Hub, Config, CloudTrail,
 SQS, SNS, Route 53 (hosted zone, health check, flat AWS-endpoint base rate
@@ -386,8 +401,10 @@ Secrets Manager, MSK (Kafka: priced by each broker's real declared
 `instance_type` × `number_of_broker_nodes`, plus real per-broker EBS
 storage; not a flat representative-instance rate), OpenSearch/Elasticsearch
 (priced by each domain's real declared data-node `instance_type` ×
-`instance_count`; dedicated master nodes are a real, separate AWS charge
-not modeled), Amazon DocumentDB (real per-instance-class rate, not a flat
+`instance_count`, plus its own real per-data-node EBS storage when
+`ebs_options` declares one; dedicated master nodes and UltraWarm nodes are
+each priced as their own real declared `instance_type` × count, not folded
+into the data-node total), Amazon DocumentDB (real per-instance-class rate, not a flat
 representative-instance figure; the cluster resource itself carries a real
 backup-storage surcharge when `backup_retention_period` is declared, its own
 separate rate from RDS's) and Neptune (cluster instances only, the cluster
@@ -395,7 +412,9 @@ resource itself has no separate AWS charge), Network Firewall (billed per
 real declared `subnet_mapping` endpoint, not a flat single unit), Route53
 Resolver Endpoint (billed per real declared `ip_address` block, not a flat
 single unit), WAFv2 Web ACL, FSx for Windows File
-Server, AWS Lightsail (priced per bundle, General Purpose Linux bundles
+Server (SSD, Single-AZ baseline rate × real declared `storage_capacity`,
+same "real value when available, documented assumed-capacity floor
+otherwise" treatment as FSx for Lustre/OpenZFS/NetApp ONTAP above), AWS Lightsail (priced per bundle, General Purpose Linux bundles
 only), Amazon Lightsail Database (real per-bundle-tier monthly price:
 micro/small/medium/large, High Availability priced separately at its own
 real rate; only these 4 confirmed active tiers, AWS's own published
@@ -465,7 +484,10 @@ monthly figure over that ~13-month cycle; counted per distinct FQDN across
 `domain_name` + `subject_alternative_names`, standard vs. wildcard rated
 separately; correctly $0 for Private-CA-issued certificates, which bill
 under ACM Private CA's own SKUs instead), FSx for Lustre/OpenZFS/NetApp
-ONTAP (Persistent/Single-AZ SSD baseline), Kinesis Data Analytics v2 (priced at the single-KPU
+ONTAP (Persistent/Single-AZ SSD baseline rate × each file system's real
+declared `storage_capacity`, falling back to a documented assumed-capacity
+floor only when that attribute isn't available, e.g. CloudFormation/Pulumi
+input or a real restore-from-backup file system), Kinesis Data Analytics v2 (priced at the single-KPU
 minimum every application runs at least, same "documented floor" posture as
 Lambda/SQS/SNS below), AWS App Runner (priced at an assumed 1 vCPU/2GB
 baseline configuration, same reasoning as ECS/Fargate below), Amazon
@@ -519,7 +541,12 @@ the 24h-7day band) and Kinesis Stream Consumer/Enhanced Fan-Out
 (`aws_kinesis_stream_consumer`, its real shard count resolved from its
 `stream_arn` reference to the owning stream), Amazon CloudSearch (real
 per-search-instance-type rate), Amazon WorkMail (a flat per-user monthly
-fee), AWS Shield Advanced (a flat account-level monthly subscription fee),
+fee), Amazon QuickSight users (`aws_quicksight_user`'s real declared
+`user_role`: Reader, Reader Pro, and Author Pro each have their own real
+flat per-user monthly rate; Author, Admin, Admin Pro, Restricted Author,
+and Restricted Reader have no flat rate published by AWS at all and are
+left unpriced rather than guessed), AWS Shield Advanced (a flat
+account-level monthly subscription fee),
 Amazon Athena Capacity Reservations (real per-DPU-hour rate x real
 declared `target_dpus`), Amazon FinSpace Managed kdb Kx Clusters (real
 per-node-type rate x real declared `node_count`), Amazon Lightsail
@@ -595,8 +622,16 @@ exception to this tool's otherwise strictly single-resource,
 no-cross-referencing design (see Amazon Bedrock Provisioned Throughput
 below for a case where that design is *not* bent: a `model_arn` pointing
 at a custom/fine-tuned model stays unresolved rather than adding a fifth
-cross-reference). Falls back to `max_size`/`min_size` when
-`desired_capacity` isn't set. An ASG using `mixed_instances_policy`
+cross-reference). When `desired_capacity` isn't set, the fleet is priced
+at `min_size` — AWS's own documented default for the initial running
+count (a refreshed state/plan carries the real running count instead), so
+`min_size = 0` prices at $0 until a scaling policy scales it out, and a
+`desired_capacity` left unknown by a plan (`null`) is treated the same as
+unset rather than as a deliberate scale-to-zero. An
+`instance_state` of `stopped`/`stopping` on a plain `aws_instance` drops
+its compute (and its released public IPv4) to $0, keeping only its EBS
+volumes. An
+ASG using `mixed_instances_policy`
 (multiple possible instance types with weighted overrides) isn't resolved
 from declared config alone: there's no way to know which override
 actually gets used without asking AWS directly, so it stays unpriced
@@ -803,6 +838,39 @@ separate AWS charge, not M2's. Note this is a service AWS closed to new
 customers on 2025-11-07; still fully priced for existing customers'
 infrastructure, whose bulk rates remain live.
 
+EKS Capabilities (`aws_eks_capability`, AWS's managed ACK/KRO/ArgoCD
+add-ons) are priced by real declared `type`, each at its own real flat
+per-capability-hour rate, nested under the owning `aws_eks_cluster` via
+`cluster_name`. EKS Extended Support is priced as a real flat
+per-cluster-hour surcharge, added only when `upgrade_policy.support_type`
+is explicitly declared `"EXTENDED"` — a cluster AWS auto-enrolled into
+extended support without the Terraform config reflecting it stays
+under-counted, a documented limitation rather than an inferred guess from
+Kubernetes version/EOL dates. Lambda SnapStart's Cached tier is priced as a
+real, continuous GB-second surcharge (the same billing shape as Provisioned
+Concurrency) using the function's own real `memory_size`, when
+`snap_start.apply_on = "PublishedVersions"` is declared; the separate
+per-cold-start Restored-GB charge needs real invocation/restore-count data
+this tool has no static source for, so it's deliberately left unpriced.
+DynamoDB Streams' real per-read-request-unit rate (beyond AWS's real
+2.5M-request/month free tier) is priced from a declared `stream_enabled`
+table plus a `--usage` file's `monthly_stream_read_request_units`.
+CloudFront Origin Shield's real per-request rate is priced the same way,
+from a declared `origin_shield.enabled` distribution plus
+`monthly_origin_shield_requests`. S3 Replication Time Control's real,
+region-pair-independent $/GB surcharge is priced from a declared
+`aws_s3_bucket_replication_configuration` (nested under its source bucket)
+whose `destination.replication_time.status` is `"Enabled"`, plus a
+`--usage` file's `monthly_replicated_gb` — plain (non-RTC) cross-region
+replication data transfer stays unpriced, since its real rate genuinely
+depends on the destination bucket's region, which this tool doesn't
+resolve. GuardDuty Protection Plans (`aws_guardduty_detector_feature`) and
+EKS Auto Mode (`compute_config.enabled`) are both surfaced as $0
+informational findings, never a dollar figure — their real usage (vCPU-
+hours monitored, GB scanned, dynamically-provisioned EC2 Managed
+Instances) has no static Terraform attribute or bulk-API-derivable volume
+this tool can price from.
+
 ## FinOps recommendations
 
 Every dollar figure is computed by re-pricing the actual resource against
@@ -982,9 +1050,16 @@ the price catalog has a 1-year, no-upfront Reserved Instance rate for the
 resource's EC2 instance type or RDS instance class (refreshed by the same
 `update-prices`/`generate-prices` pipeline as on-demand rates, no extra AWS
 account or credentials needed to see it, since the rate ships in the
-public, published catalog). Savings Plans themselves aren't priced (no
-public per-instance-type Savings Plan rate to query); only the Reserved
-Instance figure is ever quantified.
+public, published catalog).
+
+**Savings Plans** are no longer just a nudge under `--with-usage` (Pro): the
+tool reads your account's active plans (`savingsplans:DescribeSavingsPlans`)
+and their real discounted per-usage-type rates
+(`savingsplans:DescribeSavingsPlanRates` — AWS's own numbers, not inferred),
+matches them (plus held Reserved Instances) against your steady-state
+EC2/RDS capacity, and prints a **commitment coverage** section: list price,
+your effective rate, and what the commitment saves, as separate figures.
+See [Usage-aware FinOps](#usage-aware-finops---with-usage).
 
 This is a **CloudCostTree Pro** feature: Free always sees the original,
 unquantified nudge, even when the catalog does have a matching rate.
@@ -1075,6 +1150,22 @@ as before (a printed note, never a failure).
   EC2/RDS CloudWatch data stays recommendation-only, deliberately: an
   EC2 instance's on-demand rate is already a hard catalog fact, not a
   volume guess the way every type in this list's declared cost is.
+- **Confidence range on usage-priced estimates**: every metric above is
+  pulled as a real daily time series over the lookback window (not one
+  window-wide average), so this tool can measure actual day-to-day
+  variance instead of just a mean. When that variance is meaningful, the
+  affected resource's `--export json` entry carries
+  `monthly_range_low_usd`/`monthly_range_high_usd` alongside its single
+  `monthly_usd` figure — a real measured spread, never an invented
+  ±X% band, and the console run prints a one-line note pointing you at
+  it. A `--usage` file value or the documented assumed default never
+  gets a range (there's no measurement behind a number you typed by
+  hand or a flat industry default) — only `--with-usage`'s real
+  CloudWatch data does. [`history compare`'s "usage" cause
+  attribution](#cost-delta-attribution) also uses this same measured
+  variance, when both compared snapshots have it, instead of a flat
+  percentage cutoff, to tell a genuine consumption change apart from
+  ordinary day-to-day noise.
 - **Real `mixed_instances_policy` resolution**: another headline-number
   correction, not just a recommendation. An Auto Scaling Group using
   `mixed_instances_policy` has no single declared `instance_type` at all
@@ -1213,11 +1304,27 @@ Needs `cloudwatch:GetMetricData`, `ec2:DescribeSpotPriceHistory`,
 `ec2:DescribeVolumes`, `ec2:DescribeSnapshots`, `ec2:DescribeAddresses`,
 `ec2:DescribeReservedInstances`, `ec2:DescribeInstances`,
 `rds:DescribeDBInstances`, `rds:DescribeReservedDBInstances`,
+`savingsplans:DescribeSavingsPlans`, `savingsplans:DescribeSavingsPlanRates`,
 `elasticloadbalancing:DescribeTargetGroups`/`DescribeTargetHealth`,
 `logs:StartQuery`/`logs:GetQueryResults`,
 `autoscaling:DescribeAutoScalingGroups`, and (with `--stack-name`,
 CloudFormation input only) `cloudformation:DescribeStackResources` IAM
-permissions. `ec2:DescribeInstances`/`rds:DescribeDBInstances` are the one
+permissions. The `savingsplans:*` and `*DescribeReserved*` calls are all
+free description calls (no Cost Explorer, no per-request billing); they feed
+the **commitment coverage** section, which prints list price next to what
+your held Savings Plans / Reserved Instances actually bill you — as separate
+figures, never blended into the headline total. A right-sizing
+recommendation for a covered instance also carries a stranded-commitment
+caveat.
+
+`--with-usage` also measures **data transfer** for NAT Gateways and Transit
+Gateways from the CloudWatch byte metrics AWS already publishes — data
+processing plus NAT internet egress, priced against the real per-GB rate
+cards, needing no extra permission beyond `cloudwatch:GetMetricData`.
+Cross-AZ / inter-AZ transfer and direct-to-IGW instance egress stay out: no
+CloudWatch metric isolates their billable portion from free same-AZ
+traffic, and this tool never guesses one. Internet egress uses the standard
+first-tier rate; volume discounts above 10 TB/month aren't applied. `ec2:DescribeInstances`/`rds:DescribeDBInstances` are the one
 pair above that scan the whole account/region rather than looking up
 specific resources by ID (every other call here targets IDs this tool
 already resolved), that's what the fleet size outlier check above needs to
@@ -1230,6 +1337,94 @@ extra recommendations. On Free, `--with-usage` is accepted but ignored
 unaffected). Deliberately **not** available during a `--<flag>` what-if
 simulation: real CloudWatch data belongs to the resource as it exists
 today, not to a hypothetically-resized simulated version of it.
+
+### Confidence range on the total
+
+Usage-priced resources (Lambda, SQS, SNS, DynamoDB on-demand, NAT/Transit
+Gateway data transfer, …) carry real day-to-day variance, measured as the
+standard deviation of their own daily CloudWatch datapoints over the
+lookback window. Under `--with-usage`, those per-resource spreads are
+combined — as independent variances (√Σσ²), not a linear sum — into a
+single range shown under the headline:
+
+```
+Current Total: $509.23/month
+  Range:       $480.12 – $540.44/month   (±1σ measured usage variance, --with-usage)
+```
+
+Resources with no variance signal (a `--usage` file value, the assumed
+default, a fixed hourly rate) enter the total as a point and widen nothing.
+The range only appears when there is real measurement behind it — it is
+never a fabricated ±X% band. Per-resource spreads are in `--export json`
+(`monthly_range_low_usd` / `monthly_range_high_usd`); the combined total is
+`total_monthly_range_low_usd` / `_high_usd`.
+
+## Reconcile with your real bill
+
+```
+cloudcosttree analyze ./my-infra.tf --reconcile
+```
+
+`--reconcile` (**Pro**) is the backward-looking companion to `--with-usage`.
+Where `--with-usage` asks *"what would the observed usage cost at list
+price"*, `--reconcile` asks *"what did AWS actually charge"* — and lays that
+next to the IaC estimate:
+
+```
+RECONCILIATION (estimate vs. actual)
+Window: last 14 days (2026-08-17 to 2026-08-31), scaled to a monthly run-rate
+
+IaC estimate (list price):  $509.23/month
+AWS actually billed:        $472.80/month
+Delta:                      -$36.43/month
+
+Per EC2 instance:
+  web-1                      est $61.32 → actual $54.10  (Δ -$7.22)
+
+By service:
+  Amazon Elastic Compute Cloud - Compute   est $180.00 → actual $150.00  (Δ -$30.00)
+  Amazon Route 53                          est —        → actual $12.00   (Δ +$12.00)
+
+Billed, but not in your IaC:
+  Amazon Route 53 — $12.00/month
+```
+
+It reads **Cost Explorer** with your own read-only credentials:
+`ce:GetCostAndUsage` (grouped by service — always available) and, for
+per-EC2-instance detail, `ce:GetCostAndUsageWithResources` (needs your
+account to have turned on resource-level Cost Explorer data in the Cost
+Explorer settings page; without it, reconciliation is at service resolution
+and says so). Cost Explorer bills **$0.01 per request**, so results are
+cached ~12 h under `~/.cloudcosttree/actuals`; `--reconcile-refresh` forces
+a re-query.
+
+The estimate–vs–actual delta report is the point: continuous reconciliation
+of what the IaC intends against what AWS is really charging, including the
+services in your bill that no resource in the IaC maps to. The top-level
+monthly total in the rest of the report stays the list-price estimate — the
+actual is shown alongside it, never silently substituted. This is a v1:
+Cost Explorer only, single account. CUR (Cost & Usage Report) ingestion for
+true line-item / amortized history is a planned follow-up.
+
+## What CloudCostTree does not claim
+
+Even with `--with-usage` and `--reconcile`, some things are structurally out
+of reach. The tool frames these rather than guessing at them:
+
+- **Non-constant future usage** (a launch, a campaign, virality): external
+  knowledge no metric contains. The `--with-usage` number is a projection
+  at *constant observed usage* — for an event you already know about, use
+  the what-if simulator instead.
+- **Per-tree-node attribution of shared cost**: the variable (per-GB /
+  per-request) part of a shared NAT/ALB needs opt-in flow logs that can't be
+  gathered retroactively; the fixed hourly part is an allocation *policy*,
+  not a fact. Shared cost is shown as its own line, never split silently.
+- **Cross-AZ / inter-AZ data transfer**: no CloudWatch metric separates its
+  billable portion from free same-AZ traffic. Left unpriced, and said so.
+- **Tax, credits, EDP/PPA negotiated terms, org-level tier position,
+  non-AWS cost**: out of scope. The list-price line says "before Savings
+  Plans / Reserved Instances / credits / tax"; `--reconcile`'s actuals come
+  straight from AWS and do include whatever AWS itself included.
 
 ## What-if simulator
 
@@ -1637,6 +1832,7 @@ cloudcosttree history save prod-2026-07 ./my-infra.tf --with-usage
 cloudcosttree history list
 cloudcosttree history trend [-last <n>]
 cloudcosttree history compare <name-or-id> <name-or-id>
+cloudcosttree history compare <name-or-id> <name-or-id> --group-by-tag <key>
 cloudcosttree history delete <name-or-id>
 cloudcosttree history export <name> <path>
 cloudcosttree history import <path>
@@ -1697,7 +1893,14 @@ Changed (1):
   volume](#real-usage-volume---usage-file) above) or `--with-usage` (Pro) —
   without one of those, these resources have no usage fingerprint recorded
   and a real consumption
-  change falls back to unlabeled, same as before this bucket existed.
+  change falls back to unlabeled, same as before this bucket existed. When
+  both snapshots were saved with `--with-usage`, "enough to explain the
+  delta" is a real measured threshold — this tool's own confirmed
+  day-to-day variance for that resource at each save time (see [Confidence
+  range on usage-priced
+  estimates](#usage-aware-finops---with-usage) above), not a flat
+  percentage guess; a snapshot saved with a `--usage` file instead (no
+  variance signal at all) still falls back to that flat guess.
 - No label at all: the cause can't be determined (a snapshot saved before
   this attribution existed, one or both saved without `--usage` for a
   usage-billed resource, or a real change this tool doesn't fingerprint
@@ -1711,6 +1914,51 @@ how to read every `price change`-labeled line below it. Config and price
 are checked first, so a resource whose usage moved *and* whose catalog
 also happened to refresh in the same window is still labeled `price change`
 — usage is a fallback attribution, not a competing one.
+
+### Cost allocation by tag
+
+`history compare --group-by-tag <key>` answers a different question than
+the cause attribution above: not "why did this resource's cost change,"
+but "why did the total cost attributed to `<key>=<value>` change" — e.g.
+`--group-by-tag team` for `team=payments`. A resource's own cost is
+tag-independent, so re-tagging it never explains its own delta; this is a
+separate, additive report alongside the usual compare output, not a new
+value on the existing cause label:
+
+```sh
+cloudcosttree history compare before-migration after-migration --group-by-tag team
+```
+
+```
+COST ALLOCATION BY TAG: team
+  payments    $600.00/month -> $420.00/month (-$180.00/month)
+  platform    $300.00/month -> $480.00/month (+$180.00/month)
+
+Moved (1):
+  ~ web [ec2] moved payments -> platform      $60.00/month -> $60.00/month
+```
+
+Four distinct things can move a group's total, reported separately:
+
+- **Group totals**: each tag value's aggregate cost in both snapshots,
+  independent of whether any individual resource moved between groups.
+- **Moved**: a resource present in both snapshots whose tag value itself
+  changed — a reallocation, not new spend.
+- **Added / Removed**: genuine infrastructure changes (no match at all in
+  the other snapshot), scoped to whichever group the resource's tag puts
+  it in — never counted as a move.
+- **Changed**: a resource that stayed in the same group both times, but
+  whose own cost moved for the usual config/price/usage reasons (see [Cost
+  delta attribution](#cost-delta-attribution) above — this reuses the same
+  cause labels).
+
+The tag key has no default and is never guessed — case-sensitive exact
+match against each resource's tags, same as this tool's policy tag
+conditions (`tags.<Key>`, see [Policies](#policies) above).
+Resources missing the tag key entirely are grouped under `(untagged)`,
+never silently dropped from the totals. Only included in `--export json`
+for now; the `md`/`csv`/`html`/`pr-comment` exports don't have a by-tag
+table yet.
 
 ### Cost drift alerts in CI
 
@@ -1781,13 +2029,37 @@ unlike the normal desktop `license activate` flow.
 ## IAM policy generator
 
 ```
-cloudcosttree iam ./infra/       # Terraform/CloudFormation/Pulumi -> least-privilege deployer policy
+cloudcosttree iam ./infra/                          # Terraform directory (static scan, no init/plan/credentials)
+cloudcosttree iam ./infra/ --plan plan.json          # + a real terraform show -json plan for precise per-resource actions
+cloudcosttree iam ./infra/ --output json -o policy.json
+cloudcosttree iam cfn-template.json                  # CloudFormation
+cloudcosttree iam pulumi-export.json                 # `pulumi stack export > pulumi-export.json`
 ```
 
-Not "what will this cost" but "what IAM permissions does deploying this
-need" — 821 resource types covered. Every policy uses `Resource: "*"` for
-now (Action list is real and scoped, resource-level ARN scoping isn't
-shipped yet). Free on both tiers.
+Answers a different question than the rest of this tool: not "what will
+this cost" but "what IAM permissions does deploying this actually need" —
+the least-privilege policy for a deployer role, worked out from the same
+Terraform/CloudFormation/Pulumi input, without ever contacting AWS.
+Terragrunt/Atmos aren't scanned separately: both resolve to a real
+Terraform module directory, so pointing this at that resolved directory is
+enough.
+
+A plain directory scan (no `--plan`) can't tell create from update from
+delete, so it grants a resource type's full CRUD action set; a real
+Terraform plan (`--plan`, or a `terraform show -json` file passed directly)
+narrows that to exactly the actions the actual planned change needs.
+CloudFormation and Pulumi input are always scanned statically (a template
+alone, or a stack export, carries no plan-level action detail the way a
+Terraform plan does).
+
+**Honest about what it isn't yet:** every generated policy currently uses
+`"Resource": "*"` — the `Action` list is real and correctly scoped to the
+specific IAM API calls that resource type needs, but not yet to the exact
+resource(s) a deployment declares (a `s3:DeleteBucket` grant works against
+any bucket in the account, not just this one). Scoping `Resource` down to
+real ARNs is planned, not shipped. Review the output before attaching it to
+any real IAM identity, same as you would any least-privilege tool's
+starting point.
 
 ## VS Code extension
 
@@ -1843,18 +2115,20 @@ your own AWS account), then enriches Analyze/Compare the same way the CLI
 flag does; see the extension's own README for the consent/credential
 details.
 
-"🛡️ Generate IAM Policy" is the UI for [the `iam` command](#iam-policy-generator)
-above — no cost analysis needed first, click writes
-`<name>_cct-iam-policy.json` next to the input. Free on both tiers.
+A resource with a real [measured confidence
+range](#usage-aware-finops---with-usage) shows a small `±` marker next to
+its monthly cost in the tree (hover it for the real range) — in Analyze
+mode, clicking the resource also shows the full range in the detail panel.
+Compare's tree is read-only (no detail panel), so there the `±` marker's
+tooltip is the only place the range appears.
 
-A "💾 Save Snapshot" button saves the current analysis as a `history save`
-snapshot with one click — no naming needed (`<file>-<date>-cct`,
-auto-generated). Asks whether to include real AWS usage data first (Pro;
-Free still saves, just without it). Snapshots land in the same
-`~/.cloudcosttree/history` the CLI's own `history save` uses, so `history
-list`/`compare`/`trend` from a terminal see them too — see [Cost delta
-attribution](#cost-delta-attribution) for what a saved usage snapshot
-unlocks in `compare`.
+"🛡️ Generate IAM Policy" is the UI for [the `iam` command](#iam-policy-generator)
+above — reachable from the analysis panel's toolbar, the Command Palette,
+and the explorer/editor right-click menu on any supported file or folder.
+Unlike every other button here, it doesn't need a cost analysis open at
+all (it's a fully standalone command); a click writes
+`<name>_cct-iam-policy.json` next to the input and opens it, no save
+dialog. Free on both tiers.
 
 ## Free vs Pro
 
@@ -1873,6 +2147,10 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Real usage volume for request/GB/event-billed resources (`--usage` file: Lambda, SQS, SNS, ...) | Included | Included |
 | Real Reserved Instance $ savings | Unquantified nudge only | Real 1yr-no-upfront $/mo figure |
 | Usage-aware FinOps (`--with-usage`: CloudWatch right-sizing + live Spot pricing + real Lambda cost correction) | Not included | Included |
+| Measured data transfer (`--with-usage`: NAT / Transit Gateway processing + NAT internet egress from CloudWatch bytes) | Not included | Included |
+| Commitment coverage (`--with-usage`: Savings Plan / Reserved Instance list-vs-effective, read from your account) | Not included | Included |
+| Confidence range on the total (`--with-usage`: ±1σ measured usage variance) | Not included | Included |
+| Reconcile against your real bill (`--reconcile`: Cost Explorer estimate-vs-actual delta) | Not included | Included |
 | CI/CD runs (`ci report`/`check`/`diff`) | 1,000/month | Unlimited |
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included: cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
@@ -1912,7 +2190,8 @@ pkg/model/           The shared Resource/Infrastructure schema every parser/rend
 pkg/cost/            PriceCatalog + Calculator: prices.json → a resource's/tree's $/mo
 pkg/pricing/         update-prices/generate-prices: AWS Price List Bulk API → prices.json
 pkg/usagefile/       --usage file: local, declarative volume overrides (every plan)
-pkg/usage/           --with-usage: live CloudWatch/EC2 Spot/EBS/EIP/ELBv2 calls (Pro)
+pkg/usage/           --with-usage: live CloudWatch/EC2 Spot/EBS/EIP/ELBv2/Savings Plan calls (Pro)
+pkg/actuals/         --reconcile: Cost Explorer reads, disk cache, estimate-vs-actual matching (Pro)
 pkg/finops/          Savings-recommendation rules (declared-config rules + usage-aware rules),
                     each optionally carrying a machine-actionable Fix --optimize consumes
 pkg/policy/          Governance/cost policy DSL: parsing, condition evaluation, templates
