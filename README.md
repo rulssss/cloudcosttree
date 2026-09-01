@@ -1313,8 +1313,12 @@ permissions. The `savingsplans:*` and `*DescribeReserved*` calls are all
 free description calls (no Cost Explorer, no per-request billing); they feed
 the **commitment coverage** section, which prints list price next to what
 your held Savings Plans / Reserved Instances actually bill you — as separate
-figures, never blended into the headline total. A right-sizing
-recommendation for a covered instance also carries a stranded-commitment
+figures, never blended into the headline total. It also shows a
+**whole-stack effective total**: the tree's list total minus only the real
+commitment savings (covered EC2/RDS at their effective rate, everything else
+still at list — labelled as such, not presented as a full effective bill).
+A right-sizing recommendation for a covered instance also carries a
+stranded-commitment
 caveat.
 
 `--with-usage` also measures **data transfer** for NAT Gateways and Transit
@@ -1323,8 +1327,9 @@ processing plus NAT internet egress, priced against the real per-GB rate
 cards, needing no extra permission beyond `cloudwatch:GetMetricData`.
 Cross-AZ / inter-AZ transfer and direct-to-IGW instance egress stay out: no
 CloudWatch metric isolates their billable portion from free same-AZ
-traffic, and this tool never guesses one. Internet egress uses the standard
-first-tier rate; volume discounts above 10 TB/month aren't applied. `ec2:DescribeInstances`/`rds:DescribeDBInstances` are the one
+traffic, and this tool never guesses one. Internet egress is priced against
+AWS's full tiered rate ladder (first 10 TB/month, then the $0.085 / $0.07 /
+$0.05 bands). `ec2:DescribeInstances`/`rds:DescribeDBInstances` are the one
 pair above that scan the whole account/region rather than looking up
 specific resources by ID (every other call here targets IDs this tool
 already resolved), that's what the fleet size outlier check above needs to
