@@ -206,8 +206,10 @@ all share the same general options:
 | `--with-usage` | (`analyze` and `diff`, **Pro**) enrich with real CloudWatch utilization + live Spot pricing; see below. On `diff`, applied to the baseline and current file independently |
 | `--stack-name <name>` | (`analyze` and `diff`, with `--with-usage`, CloudFormation input only, **Pro**) the deployed stack name, needed to resolve real resource IDs for a CloudFormation template; see below. On `diff`, the same value is used for both files |
 | `--accounts <path>` | (`analyze` and `diff`, with `--with-usage`) multi-account role mapping; see [Multi-region and multi-account](#multi-region-and-multi-account---accounts) below |
-| `--reconcile` | (`analyze`, **Pro**) read what AWS actually billed over the last 14 days (Cost Explorer, your own read-only credentials) and show it next to the list-price estimate; see [Reconcile with your real bill](#reconcile-with-your-real-bill) below. Cost Explorer bills you $0.01/request, so results are cached ~12h |
-| `--reconcile-refresh` | (`analyze`, with `--reconcile`) ignore the cache and re-query Cost Explorer now |
+| `--reconcile` | (`analyze` and `diff`, **Pro**) read what AWS actually billed over the last 14 days (Cost Explorer, your own read-only credentials) and show it next to the list-price estimate; see [Reconcile with your real bill](#reconcile-with-your-real-bill) below. Cost Explorer bills you $0.01/request, so results are cached ~12h. With `--accounts`, reads every distinct role and merges |
+| `--reconcile-refresh` | (with `--reconcile`) ignore the cache and re-query Cost Explorer now |
+| `--reconcile-days <n>` | (with `--reconcile`) lookback window, default 14. A window over 14 days drops to service-level resolution — per-instance data isn't kept past 14 days |
+| `--cost-allocation-tag <key>` | (with `--reconcile`) also break the comparison down by this cost-allocation tag key. The tag must be activated in the AWS billing console or Cost Explorer returns nothing for it |
 | `--scenario <path>` | (`analyze` only) Simulate changes to several resources at once from a YAML file; see [What-if simulator](#what-if-simulator) below |
 | `--optimize` | (`analyze` only) Auto-build and simulate a what-if scenario from the FinOps recommendations already shown, applying only the ones safe to apply mechanically; see [Optimize](#optimize) below |
 | `--write-changes <dir>` | (`analyze` only, **Pro**) Write a what-if simulation's result to a new file/directory, never the original; see [What-if simulator](#what-if-simulator) below |
@@ -1057,8 +1059,9 @@ tool reads your account's active plans (`savingsplans:DescribeSavingsPlans`)
 and their real discounted per-usage-type rates
 (`savingsplans:DescribeSavingsPlanRates` — AWS's own numbers, not inferred),
 matches them (plus held EC2/RDS Reserved Instances, Reserved Cache Nodes,
-and Reserved Redshift Nodes) against your steady-state EC2 / RDS /
-ElastiCache / Redshift capacity, and prints a **commitment coverage**
+Reserved Redshift Nodes, and Reserved OpenSearch Instances) against your
+steady-state EC2 / RDS / ElastiCache / Redshift / OpenSearch capacity, and
+prints a **commitment coverage**
 section: list price, your effective rate, and what the commitment saves, as
 separate figures. See [Usage-aware FinOps](#usage-aware-finops---with-usage).
 
@@ -1248,16 +1251,18 @@ as before (a printed note, never a failure).
   no comparable fleet at all, or fewer than 2 other instances to compare
   against, this never guesses from a tiny sample. EC2 and RDS only for
   now; RDS Cluster/Aurora and ElastiCache aren't in scope yet.
-- **Reserved Instance coverage gap**: calls `ec2:DescribeReservedInstances`/
-  `rds:DescribeReservedDBInstances` (both already required above/free,
-  unlike a hypothetical future Savings-Plans version of this check, which
-  would need AWS Cost Explorer's API, billed per call; this one adds no AWS
-  bill of its own) and compares real held Reserved Instance counts against
-  every steady-state (no autoscaling, default 24/7 hours, the same gate
-  `ruleReservedCapacityCandidate` uses) EC2/RDS instance type/class actually
-  declared here. When declared count exceeds held RI count, flags the
+- **Reserved coverage gap**: calls `ec2:DescribeReservedInstances`,
+  `rds:DescribeReservedDBInstances`, `elasticache:DescribeReservedCacheNodes`,
+  `redshift:DescribeReservedNodes` and `es:DescribeReservedInstances` (all
+  already required above/free, unlike a hypothetical future Savings-Plans
+  version of this check, which would need AWS Cost Explorer's API, billed
+  per call; this one adds no AWS bill of its own) and compares real held
+  reservation counts against every steady-state (no autoscaling, default
+  24/7 hours, the same gate `ruleReservedCapacityCandidate` uses) EC2 / RDS /
+  ElastiCache / Redshift / OpenSearch instance type / node type / class
+  actually declared here. When declared count exceeds held count, flags the
   uncovered gap with a real repriced dollar figure: what buying enough more
-  1-year no-upfront RIs to cover the rest would save. Unlike
+  1-year no-upfront reservations to cover the rest would save. Unlike
   `ruleReservedCapacityCandidate` above (which only ever asks "would an RI
   help, hypothetically," blind to what the account already owns), this is
   the account's real inventory, so a team that's already fully RI-covered
@@ -1267,6 +1272,17 @@ as before (a printed note, never a failure).
   and a Linux RI of the same instance type (or an AZ-pinned RI) are folded
   together as undifferentiated coverage for that type, a real, disclosed
   approximation, not a guess invented by this check.
+- **NAT Gateway → Gateway VPC endpoint**: when a NAT Gateway processed a
+  meaningful amount of data (measured, above 100 GB/month) and the
+  infrastructure also has S3 and/or DynamoDB resources, flags that traffic to
+  those two can go through a **Gateway VPC endpoint** — which AWS doesn't
+  charge for — instead of the NAT Gateway's per-GB data-processing rate. An
+  informational ($0) nudge, not a quantified saving: CloudWatch's NAT metrics
+  don't split processed bytes by destination, so the eliminable S3/DynamoDB
+  share can't be measured without VPC Flow Logs. The message states the full
+  measured processing charge as the ceiling and is explicit that the real
+  amount is a fraction of it. The offered what-if models the best case (all
+  NAT processing gone) and is never auto-applied by `--optimize`.
 
 ### Multi-region and multi-account (`--accounts`)
 
@@ -1307,6 +1323,7 @@ Needs `cloudwatch:GetMetricData`, `ec2:DescribeSpotPriceHistory`,
 `rds:DescribeDBInstances`, `rds:DescribeReservedDBInstances`,
 `savingsplans:DescribeSavingsPlans`, `savingsplans:DescribeSavingsPlanRates`,
 `elasticache:DescribeReservedCacheNodes`, `redshift:DescribeReservedNodes`,
+`es:DescribeReservedInstances`,
 `elasticloadbalancing:DescribeTargetGroups`/`DescribeTargetHealth`,
 `logs:StartQuery`/`logs:GetQueryResults`,
 `autoscaling:DescribeAutoScalingGroups`, and (with `--stack-name`,
@@ -1315,8 +1332,8 @@ permissions. The `savingsplans:*` and `*DescribeReserved*` calls are all
 free description calls (no Cost Explorer, no per-request billing); they feed
 the **commitment coverage** section, which prints list price next to what
 your held Savings Plans / Reserved Instances / Reserved Cache Nodes /
-Reserved Redshift Nodes actually bill you — as separate figures, never
-blended into the headline total. It also shows a
+Reserved Redshift Nodes / Reserved OpenSearch Instances actually bill you —
+as separate figures, never blended into the headline total. It also shows a
 **whole-stack effective total**: the tree's list total minus only the real
 commitment savings (covered EC2/RDS at their effective rate, everything else
 still at list — labelled as such, not presented as a full effective bill).
@@ -1406,13 +1423,27 @@ and says so). Cost Explorer bills **$0.01 per request**, so results are
 cached ~12 h under `~/.cloudcosttree/actuals`; `--reconcile-refresh` forces
 a re-query.
 
+- `--reconcile-days <n>` widens the window past the default 14. Per-instance
+  detail isn't retained past 14 days, so a longer window drops to
+  service-level resolution (and says so).
+- `--cost-allocation-tag <key>` adds a per-tag-value roll-up — your IaC's
+  own resources bucketed by that tag key next to Cost Explorer's per-value
+  total, with `(untagged)` for spend carrying no value for that key.
+  Activate the tag as a cost-allocation tag in the AWS billing console
+  first, or Cost Explorer returns nothing for it.
+- With `--accounts`, `--reconcile` reads Cost Explorer once per distinct
+  role and merges the reports (per-instance detail requires every account
+  to have opted in).
+- `--reconcile` also works on `diff`, lining the real bill up against the
+  *current* (target) state.
+
 The estimate–vs–actual delta report is the point: continuous reconciliation
 of what the IaC intends against what AWS is really charging, including the
 services in your bill that no resource in the IaC maps to. The top-level
 monthly total in the rest of the report stays the list-price estimate — the
 actual is shown alongside it, never silently substituted. This is a v1:
-Cost Explorer only, single account. CUR (Cost & Usage Report) ingestion for
-true line-item / amortized history is a planned follow-up.
+Cost Explorer only. CUR (Cost & Usage Report) ingestion for true line-item /
+amortized history is a planned follow-up.
 
 ## What CloudCostTree does not claim
 
