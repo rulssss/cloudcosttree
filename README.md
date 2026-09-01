@@ -1056,10 +1056,11 @@ public, published catalog).
 tool reads your account's active plans (`savingsplans:DescribeSavingsPlans`)
 and their real discounted per-usage-type rates
 (`savingsplans:DescribeSavingsPlanRates` — AWS's own numbers, not inferred),
-matches them (plus held Reserved Instances) against your steady-state
-EC2/RDS capacity, and prints a **commitment coverage** section: list price,
-your effective rate, and what the commitment saves, as separate figures.
-See [Usage-aware FinOps](#usage-aware-finops---with-usage).
+matches them (plus held EC2/RDS Reserved Instances, Reserved Cache Nodes,
+and Reserved Redshift Nodes) against your steady-state EC2 / RDS /
+ElastiCache / Redshift capacity, and prints a **commitment coverage**
+section: list price, your effective rate, and what the commitment saves, as
+separate figures. See [Usage-aware FinOps](#usage-aware-finops---with-usage).
 
 This is a **CloudCostTree Pro** feature: Free always sees the original,
 unquantified nudge, even when the catalog does have a matching rate.
@@ -1305,6 +1306,7 @@ Needs `cloudwatch:GetMetricData`, `ec2:DescribeSpotPriceHistory`,
 `ec2:DescribeReservedInstances`, `ec2:DescribeInstances`,
 `rds:DescribeDBInstances`, `rds:DescribeReservedDBInstances`,
 `savingsplans:DescribeSavingsPlans`, `savingsplans:DescribeSavingsPlanRates`,
+`elasticache:DescribeReservedCacheNodes`, `redshift:DescribeReservedNodes`,
 `elasticloadbalancing:DescribeTargetGroups`/`DescribeTargetHealth`,
 `logs:StartQuery`/`logs:GetQueryResults`,
 `autoscaling:DescribeAutoScalingGroups`, and (with `--stack-name`,
@@ -1312,8 +1314,9 @@ CloudFormation input only) `cloudformation:DescribeStackResources` IAM
 permissions. The `savingsplans:*` and `*DescribeReserved*` calls are all
 free description calls (no Cost Explorer, no per-request billing); they feed
 the **commitment coverage** section, which prints list price next to what
-your held Savings Plans / Reserved Instances actually bill you — as separate
-figures, never blended into the headline total. It also shows a
+your held Savings Plans / Reserved Instances / Reserved Cache Nodes /
+Reserved Redshift Nodes actually bill you — as separate figures, never
+blended into the headline total. It also shows a
 **whole-stack effective total**: the tree's list total minus only the real
 commitment savings (covered EC2/RDS at their effective rate, everything else
 still at list — labelled as such, not presented as a full effective bill).
