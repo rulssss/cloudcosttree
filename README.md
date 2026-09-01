@@ -75,11 +75,12 @@ no user count to price against at all. Everything else this tool doesn't
 price is either genuinely free
 (a VPC, a security group) or just hasn't been mapped yet; see below for the
 full, honest list of what that covers and why. The [IAM policy
-generator](#iam-policy-generator) has its own, separate coverage: 821
-resource types today, always with a real, correct `Action` list per type,
-but every `Resource` is currently `"*"` (scoped to the specific ARN(s) a
-deployment declares is planned, not shipped yet); an unmapped resource type
-shows up as a clearly labeled warning, never a silent gap.
+generator](#iam-policy-generator) has its own, separate coverage: 1264
+resource types today, each with a real, correctly scoped `Action` list and
+`Resource: "*"`. Narrowing `Resource` to the exact ARNs a deployment
+declares — per-resource granularity — is a planned Pro capability, not
+implemented yet. An unmapped resource type shows up as a clearly labeled
+warning, never a silent gap.
 
 ## Table of contents
 
@@ -2091,14 +2092,15 @@ CloudFormation and Pulumi input are always scanned statically (a template
 alone, or a stack export, carries no plan-level action detail the way a
 Terraform plan does).
 
-**Honest about what it isn't yet:** every generated policy currently uses
-`"Resource": "*"` — the `Action` list is real and correctly scoped to the
-specific IAM API calls that resource type needs, but not yet to the exact
-resource(s) a deployment declares (a `s3:DeleteBucket` grant works against
-any bucket in the account, not just this one). Scoping `Resource` down to
-real ARNs is planned, not shipped. Review the output before attaching it to
-any real IAM identity, same as you would any least-privilege tool's
-starting point.
+**`Resource` scoping:** every generated policy uses `"Resource": "*"`. The
+`Action` list is real and correctly scoped to the specific IAM API calls
+each resource type needs; the `Resource` element is not narrowed to the
+exact ARNs a deployment declares (a `s3:DeleteBucket` grant works against
+any bucket in the account, not just this one). Per-resource ARN scoping is
+a planned Pro capability and is not implemented yet — today the full,
+`Resource: "*"` generator is the same on both tiers. Review the output
+before attaching it to any real IAM identity, same as you would any
+least-privilege tool's starting point.
 
 ## VS Code extension
 
@@ -2194,7 +2196,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included: cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
 | Input format: Atmos (Cloud Posse) stacks | Not included | Included |
-| IAM policy generator (`iam`, 821 resource types, `Resource: "*"`) | Included | Included |
+| IAM policy generator (`iam`, 1264 resource types) | Full policy, `Resource: "*"` | Full policy, `Resource: "*"` (per-resource ARN scoping planned) |
 | Cloud provider support | AWS | AWS |
 | VS Code extension | Included | Included |
 
