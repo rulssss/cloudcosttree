@@ -2142,6 +2142,32 @@ a planned Pro capability and is not implemented yet — today the full,
 before attaching it to any real IAM identity, same as you would any
 least-privilege tool's starting point.
 
+**Privilege-escalation review:** a least-privilege deployer policy still
+grants real permissions, and some of them are the building blocks of
+documented IAM privilege-escalation techniques — `iam:PassRole` alongside a
+compute-launch action (`lambda:CreateFunction`, `ec2:RunInstances`,
+`glue:CreateDevEndpoint`, `cloudformation:CreateStack`, SageMaker,
+CodeBuild), or a direct principal-mutation action (`iam:AttachRolePolicy`,
+`iam:PutRolePolicy`, `iam:CreateAccessKey`, `iam:UpdateAssumeRolePolicy`,
+…). Whenever the generated `Action` set contains such a combination, `iam`
+prints a **Privilege-escalation review** block naming the technique, the
+exact actions, and which input resource pulled them in. It's appended to
+the text report; for `--output json` the policy document stays a clean,
+attachable `{Version, Statement}` (a `Warnings` key would fail `aws iam
+create-policy` validation), so the review goes to stderr — and, when the
+policy was written with `-o policy.json`, also to a sibling
+`policy.privesc.txt` beside it, so a consumer that keeps only the file (the
+VS Code extension's **Generate IAM Policy**, a CI step) still gets the
+disclosure. The technique list is curated from public, citable catalogs —
+[Rhino Security Labs' IAM privilege-escalation research](https://rhinosecuritylabs.com/aws/aws-privilege-escalation-methods-mitigation-part-1/)
+and [NCC Group's PMapper](https://github.com/nccgroup/PMapper) — and every
+action in it is cross-checked against this tool's own mapping table. This
+is a safety disclosure, not a Pro feature: it runs identically on both
+tiers. It's expected output for a deployer that manages IAM or hands roles
+to compute — the point is that you attach such a policy knowing it, having
+restricted who can assume the deployer identity and narrowed `Resource`
+first.
+
 ## VS Code extension
 
 [vscode-extension/](vscode-extension/) adds an in-editor cost tree,
