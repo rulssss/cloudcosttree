@@ -96,6 +96,7 @@ warning, never a silent gap.
 - [Custom price books (every plan)](#custom-price-books)
 - [Real Reserved Instance savings (Pro)](#real-reserved-instance-savings)
 - [Usage-aware FinOps (`--with-usage`, Pro)](#usage-aware-finops---with-usage)
+- [Cross-AZ data transfer (`--flow-logs`, Pro)](#cross-az-data-transfer---flow-logs)
 - [Reconcile with your real bill (`--reconcile`, Pro)](#reconcile-with-your-real-bill)
 - [What CloudCostTree does not claim](#what-cloudcosttree-does-not-claim)
 - [What-if simulator](#what-if-simulator)
@@ -211,6 +212,7 @@ all share the same general options:
 | `--reconcile-refresh` | (with `--reconcile`) ignore the cache and re-query Cost Explorer now |
 | `--reconcile-days <n>` | (with `--reconcile`) lookback window, default 14. A window over 14 days drops to service-level resolution — per-instance data isn't kept past 14 days |
 | `--cost-allocation-tag <key>` | (with `--reconcile`) also break the comparison down by this cost-allocation tag key. The tag must be activated in the AWS billing console or Cost Explorer returns nothing for it |
+| `--flow-logs` | (`analyze`, **Pro**, implies `--with-usage`) read your existing VPC Flow Logs (CloudWatch Logs destination) to price cross-AZ / inter-AZ data transfer; see [Cross-AZ data transfer](#cross-az-data-transfer---flow-logs) below. Never enables Flow Logs; the Logs Insights scan is billed by AWS at ~$0.005/GB |
 | `--scenario <path>` | (`analyze` only) Simulate changes to several resources at once from a YAML file; see [What-if simulator](#what-if-simulator) below |
 | `--optimize` | (`analyze` only) Auto-build and simulate a what-if scenario from the FinOps recommendations already shown, applying only the ones safe to apply mechanically; see [Optimize](#optimize) below |
 | `--write-changes <dir>` | (`analyze` only, **Pro**) Write a what-if simulation's result to a new file/directory, never the original; see [What-if simulator](#what-if-simulator) below |
@@ -1346,11 +1348,12 @@ caveat.
 Gateways from the CloudWatch byte metrics AWS already publishes — data
 processing plus NAT internet egress, priced against the real per-GB rate
 cards, needing no extra permission beyond `cloudwatch:GetMetricData`.
-Cross-AZ / inter-AZ transfer and direct-to-IGW instance egress stay out: no
-CloudWatch metric isolates their billable portion from free same-AZ
-traffic, and this tool never guesses one. Internet egress is priced against
-AWS's full tiered rate ladder (first 10 TB/month, then the $0.085 / $0.07 /
-$0.05 bands). `ec2:DescribeInstances`/`rds:DescribeDBInstances` are the one
+Internet egress is priced against AWS's full tiered rate ladder (first
+10 TB/month, then the $0.085 / $0.07 / $0.05 bands). Cross-AZ / inter-AZ
+transfer is measured separately with [`--flow-logs`](#cross-az-data-transfer---flow-logs)
+below; direct-to-IGW instance egress stays out (no CloudWatch metric
+isolates its billable portion, and this tool never guesses one).
+`ec2:DescribeInstances`/`rds:DescribeDBInstances` are the one
 pair above that scan the whole account/region rather than looking up
 specific resources by ID (every other call here targets IDs this tool
 already resolved), that's what the fleet size outlier check above needs to
@@ -1384,6 +1387,41 @@ The range only appears when there is real measurement behind it — it is
 never a fabricated ±X% band. Per-resource spreads are in `--export json`
 (`monthly_range_low_usd` / `monthly_range_high_usd`); the combined total is
 `total_monthly_range_low_usd` / `_high_usd`.
+
+### Cross-AZ data transfer (`--flow-logs`)
+
+```
+cloudcosttree analyze ./my-infra.tf --flow-logs
+```
+
+`--flow-logs` (**Pro**, implies `--with-usage`) prices the one data-transfer
+dimension CloudWatch metrics can't isolate: **cross-AZ / inter-AZ transfer
+inside a region** ($0.01/GB each direction). It reads your infrastructure's
+**existing** VPC Flow Logs (CloudWatch Logs destination) via CloudWatch Logs
+Insights, maps each flow's endpoints to their ENI's Availability Zone, and
+sums the bytes that cross an AZ boundary. Because AWS logs an intra-VPC flow
+from both ENIs, summing every matching record reproduces AWS's
+bill-both-directions model with no doubling assumption.
+
+It **never enables Flow Logs** — that's a change to your infrastructure with
+its own ongoing cost, and your call to make in AWS. Reading them runs Logs
+Insights queries, which AWS bills at ~$0.005/GB scanned, so it has its own
+opt-in consent the same way `--reconcile` does. Needs a `vpc` resource with a
+resolved ID in the IaC, plus `ec2:DescribeFlowLogs`,
+`ec2:DescribeNetworkInterfaces`, `ec2:DescribeSubnets`, `ec2:DescribeVpcs`,
+`logs:StartQuery` and `logs:GetQueryResults`.
+
+The measured total is folded into the headline monthly figure and its ±1σ
+range as one line (`cross_az_data_transfer`), with a dedicated **CROSS-AZ
+DATA TRANSFER** section breaking it down per source resource (plus an
+"unattributed" line for ENIs that map to no resource in the IaC). Same-AZ
+transfer is free and never counted; inter-region transfer is a different
+rate and stays unpriced (Flow Logs can't reliably identify the destination
+region). No usable Flow Log ⇒ cross-AZ stays unpriced and disclosed, exactly
+as without the flag. When a flow log's format carries the
+`pkt-dst-aws-service` field, the NAT-Gateway → Gateway-VPC-endpoint
+recommendation also upgrades from a $0 ceiling nudge to a measured
+eliminable amount.
 
 ## Reconcile with your real bill
 
@@ -1460,7 +1498,9 @@ of reach. The tool frames these rather than guessing at them:
   gathered retroactively; the fixed hourly part is an allocation *policy*,
   not a fact. Shared cost is shown as its own line, never split silently.
 - **Cross-AZ / inter-AZ data transfer**: no CloudWatch metric separates its
-  billable portion from free same-AZ traffic. Left unpriced, and said so.
+  billable portion from free same-AZ traffic. `--flow-logs` (Pro) prices it
+  from your existing VPC Flow Logs; without them it's left unpriced, and said
+  so. Inter-region transfer stays unpriced either way.
 - **Tax, credits, EDP/PPA negotiated terms, org-level tier position,
   non-AWS cost**: out of scope. The list-price line says "before Savings
   Plans / Reserved Instances / credits / tax"; `--reconcile`'s actuals come
