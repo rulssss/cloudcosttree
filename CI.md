@@ -59,12 +59,6 @@ repository's `.github/workflows/`, then:
    live on every run, no per-machine activation seat spent doing it (unlike
    `cloudcosttree license activate`). Leave it out to run as Free.
 
-(This repo's own copies of these two files, at
-[`.github/workflows/cloudcosttree.yml`](.github/workflows/cloudcosttree.yml)
-and [`.github/workflows/cost-guard.yml`](.github/workflows/cost-guard.yml),
-use `uses: ./` / `uses: ./current` instead: that's this repo dogfooding its
-own in-progress source, not something an external repo should copy.)
-
 That's it: no marketplace listing required, no extra permissions beyond
 what's already declared in the files, no signup, and (via the public action)
 no source code exposed either way. Open a PR that touches infrastructure
@@ -82,9 +76,9 @@ and you'll get:
   blocking (`action: error` or `action: deny`), Pro only, for the same
   reason.
 
-Free-plan `ci report`/`ci check`/`ci diff` calls also share a 1,000-runs-per-
-month quota across a repo's pipelines (`cloudcosttree license status` shows
-current usage); Pro is unlimited. On GitHub Actions this is tracked
+Free-plan `ci report`/`ci check`/`ci diff`/`ci comment` calls also share a
+1,000-runs-per-month quota across a repo's pipelines (`cloudcosttree license
+status` shows current usage); Pro is unlimited. On GitHub Actions this is tracked
 server-side, keyed by the repository: a plain local counter can't do this
 job in CI, since every job runs on a fresh, disposable machine with nothing
 to accumulate against.

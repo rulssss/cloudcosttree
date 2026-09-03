@@ -182,7 +182,7 @@ cloudcosttree diff <baseline_file> <current_file> [options]          # compare t
 cloudcosttree update-prices [options]                                # refresh the AWS price catalog (no AWS account)
 cloudcosttree policy init|check|list|validate                        # governance/cost policies
 cloudcosttree usage init                                             # scaffold a --usage volume-override file
-cloudcosttree ci report|check|diff                                   # CI/CD-friendly output (see CI.md)
+cloudcosttree ci report|check|diff|comment                           # CI/CD-friendly output (see CI.md)
 cloudcosttree history save|list|trend|compare|delete|export|import   # track cost over time
 cloudcosttree license buy|activate|status                            # CloudCostTree Pro
 cloudcosttree guard -- terraform apply                               # local apply-time policy gate (not the CI Cost Guard workflow)
@@ -275,9 +275,19 @@ Auto-detected regardless of file extension:
   `terraform` CLI needs no new secret. The workspace's current state version
   is fetched and priced exactly like a local `.tfstate` file: no new
   parsing, just a new byte source. See `pkg/parser/tfc.go`.
-- A Terragrunt root directory: every unit's own plan is evaluated and the
-  output is grouped by stack automatically (tree/diff/what-if/CSV all
-  render one heading per Terragrunt unit); see `examples/terragrunt-demo/`.
+- A Terragrunt root directory: every runnable unit (a `terragrunt.hcl` with
+  its own `terraform { source = ... }` block) is discovered and the output
+  is grouped by stack automatically (tree/diff/what-if/CSV all render one
+  heading per unit); see `examples/terragrunt-demo/`. When the `terragrunt`
+  binary is in PATH and cloud credentials are available, a real
+  `terragrunt run-all plan` is evaluated; otherwise it falls back to a
+  static, credential-free scan of each unit's `inputs` merged over its
+  module's `variable` defaults — the same fallback the plain-Terraform
+  loader uses, with one extra limit: a unit whose module `source` is remote
+  (`git::`, a registry shorthand, an `s3::`/http URL) is skipped in static
+  mode, since resolving it means letting `terragrunt` fetch it. A
+  `run-all plan` that fails for any reason other than missing AWS
+  credentials is surfaced, not silently downgraded to the static preview.
 - An Atmos (Cloud Posse) stack directory: a root containing
   `atmos.yaml`/`atmos.yml`, with per-stack YAML under `stacks/` declaring
   `components.terraform.<name>.vars` for one or more real Terraform
@@ -1846,7 +1856,7 @@ nothing can fail a build).
 
 **`--max-monthly-cost <n>`** is a shortcut for exactly the aggregate cost
 cap above, without writing a `policies.yaml` at all: `tree`/`analyze`/`diff`
-and `ci report`/`check`/`diff` all accept it, folding a synthetic
+and `ci report`/`check`/`diff`/`comment` all accept it, folding a synthetic
 `total_monthly_cost <= <n>` (`action: error`) policy into the same
 evaluation as `--policies`, so it fails the run the same way any other
 blocking policy does. Same **Pro** gate as every other policy check above:
@@ -2278,7 +2288,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Commitment coverage (`--with-usage`: Savings Plan / Reserved Instance list-vs-effective, read from your account) | Not included | Included |
 | Confidence range on the total (`--with-usage`: ±1σ measured usage variance) | Not included | Included |
 | Reconcile against your real bill (`--reconcile`: Cost Explorer estimate-vs-actual delta) | Not included | Included |
-| CI/CD runs (`ci report`/`check`/`diff`) | 1,000/month | Unlimited |
+| CI/CD runs (`ci report`/`check`/`diff`/`comment`) | 1,000/month | Unlimited |
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included: cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
 | Input format: Atmos (Cloud Posse) stacks | Not included | Included |
