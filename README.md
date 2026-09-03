@@ -75,7 +75,7 @@ no user count to price against at all. Everything else this tool doesn't
 price is either genuinely free
 (a VPC, a security group) or just hasn't been mapped yet; see below for the
 full, honest list of what that covers and why. The [IAM policy
-generator](#iam-policy-generator) has its own, separate coverage: 1644
+generator](#iam-policy-generator) has its own, separate coverage: 1661
 resource types today, each with a real, correctly scoped `Action` list and
 `Resource: "*"`. Narrowing `Resource` to the exact ARNs a deployment
 declares — per-resource granularity — is a planned Pro capability, not
@@ -2282,7 +2282,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included: cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
 | Input format: Atmos (Cloud Posse) stacks | Not included | Included |
-| IAM policy generator (`iam`, 1644 resource types) | Full policy, `Resource: "*"` | Full policy, `Resource: "*"` (per-resource ARN scoping planned) |
+| IAM policy generator (`iam`, 1661 resource types) | Full policy, `Resource: "*"` | Full policy, `Resource: "*"` (per-resource ARN scoping planned) |
 | Cloud provider support | AWS | AWS |
 | VS Code extension | Included | Included |
 
