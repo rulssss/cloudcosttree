@@ -342,7 +342,13 @@ Auto-detected regardless of file extension:
 Priced natively (own `resource_hourly`/dimension entry, not a heuristic
 fallback): EC2 instances (with root EBS volume, OS multiplier), RDS
 instances and RDS Cluster/Aurora (Multi-AZ, provisioned IOPS, backup
-retention, including separate Aurora writer/reader instances, and Aurora
+retention, the non-Aurora Multi-AZ DB cluster variant (`aws_rds_cluster`
+with `db_cluster_instance_class` — MySQL/PostgreSQL, 1 writer + 2 readable
+standbys, priced at ~3× the Single-AZ instance rate plus 3× storage/IOPS,
+was a silent $0 before), separate Aurora writer/reader instances
+priced against real Aurora — not plain-RDS — instance rates, with the
+`I/O-Optimized` storage-configuration premium applied when the cluster
+declares it, and Aurora
 Serverless v2's `db.serverless` instance class priced against its real min
 ACU, cross-referenced from the owning `aws_rds_cluster`'s
 `serverlessv2_scaling_configuration` for Terraform input, falling back to an
@@ -392,10 +398,17 @@ by each Fargate task definition's own real declared `cpu`/`memory`, plus a
 real per-GB-hour surcharge for any declared `ephemeral_storage.size_in_gib`
 above the always-free 20GB baseline, multiplied by the service's real
 `desired_count`, when `requires_compatibilities` is unambiguously
-`["FARGATE"]`; falls back to the flat 0.25vCPU/0.5GB baseline for an
-EC2-launch-type/mixed-compatibility task or for CloudFormation/Pulumi
-input, which read `desired_count` but don't yet resolve the task
-definition cross-reference), RDS Proxy, Lambda
+`["FARGATE"]`, with a genuinely separate real rate pair for an ARM64 or a
+Windows `runtime_platform` (plus Windows Fargate's own per-vCPU OS-license
+fee), not a multiplier; an explicit `launch_type = "EC2"`/`"EXTERNAL"`
+service is a real **$0** instead (ECS on an EC2/external capacity pool has
+no per-task charge at all — that cost is entirely in the EC2 instances,
+priced separately as an ASG/`aws_instance` fleet), and a
+mixed-compatibility task or CloudFormation/Pulumi input (which read
+`desired_count` but don't yet resolve the task definition cross-reference)
+falls back to the flat 0.25vCPU/0.5GB baseline), RDS Proxy (`$0.015` per
+vCPU-hour of its target DB instances' summed vCPU, AWS's real 2-vCPU
+per-proxy minimum applied), Lambda
 (invocations + GB-seconds), CloudFront, CloudWatch (Logs ingestion, custom
 metrics/alarms), API Gateway, GuardDuty, Security Hub, Config, CloudTrail,
 SQS, SNS, Route 53 (hosted zone, health check, flat AWS-endpoint base rate
@@ -414,7 +427,9 @@ the same real rate as every other policy type rather than guessed at $0),
 KMS,
 Secrets Manager, MSK (Kafka: priced by each broker's real declared
 `instance_type` × `number_of_broker_nodes`, plus real per-broker EBS
-storage; not a flat representative-instance rate), OpenSearch/Elasticsearch
+storage and, when declared, the real per-MiBps-per-broker provisioned
+storage-throughput surcharge; not a flat representative-instance rate),
+OpenSearch/Elasticsearch
 (priced by each domain's real declared data-node `instance_type` ×
 `instance_count`, plus its own real per-data-node EBS storage when
 `ebs_options` declares one; dedicated master nodes and UltraWarm nodes are
@@ -485,8 +500,11 @@ schema exposes at all, MPEG-2/AV1 aren't reachable through it; a redundant
 not doubled by this tool), AWS
 Transfer Family, AWS Direct Connect (dedicated connections, priced per
 bandwidth), Amazon ECR (repository storage), Amazon Managed Workflows for
-Apache Airflow (MWAA, priced as the sum of an environment's
-Environment/Scheduler/WebServer/Worker components), AWS Certificate
+Apache Airflow (MWAA, priced as the environment-class fee — which AWS says
+already covers 1 worker + 2 schedulers + 2 web servers — plus a per-hour
+charge only for each worker/scheduler/web server declared *above* those
+included baselines, not the sum of all four component rates
+unconditionally), AWS Certificate
 Manager Private CA (General-Purpose mode), AWS Certificate Manager public
 certificate export (`aws_acm_certificate`'s `options.export = "ENABLED"`:
 a real, separate charge AWS introduced in 2026 for exporting a public
@@ -502,18 +520,24 @@ under ACM Private CA's own SKUs instead), FSx for Lustre/OpenZFS/NetApp
 ONTAP (Persistent/Single-AZ SSD baseline rate × each file system's real
 declared `storage_capacity`, falling back to a documented assumed-capacity
 floor only when that attribute isn't available, e.g. CloudFormation/Pulumi
-input or a real restore-from-backup file system), Kinesis Data Analytics v2 (priced at the single-KPU
+input or a real restore-from-backup file system; plus, on top of storage,
+real declared provisioned throughput capacity — rated per its actual
+deployment generation and Single-AZ/Multi-AZ/HA topology, e.g. ONTAP Gen-2
+Single-AZ is ~2.2× Gen-1 — and user-provisioned SSD IOPS above the free
+3-IOPS-per-GiB baseline, each a genuinely separate FSx billing dimension),
+Kinesis Data Analytics v2 (priced at the single-KPU
 minimum every application runs at least, same "documented floor" posture as
 Lambda/SQS/SNS below), AWS App Runner (priced at an assumed 1 vCPU/2GB
 baseline configuration, same reasoning as ECS/Fargate below), Amazon
 ECR Public (repository storage), AWS Systems Manager Parameter Store
 (Advanced tier), Amazon Timestream for
 InfluxDB (priced per DB instance type), Amazon Kendra (index base
-capacity fee, Developer or Enterprise edition), Amazon EMR (master node + core instance fleet + task instance
+capacity fee, Developer or Enterprise edition), Amazon EMR (master instance group + core instance group + task instance
 groups (`aws_emr_instance_group`), each node priced
-at its EC2 rate plus EMR's own per-instance-hour markup fee; the
-instance-fleet configuration API isn't modeled, and a
-multi-master HA config's master group is still priced as a single node),
+at its EC2 rate plus EMR's own per-instance-hour markup fee; a multi-master
+HA config's master group is priced at its real declared instance count
+(1 by default, 3 for HA); the instance-fleet configuration API isn't
+modeled),
 Amazon MemoryDB for Redis/Valkey (priced per node type and engine, since
 engine changes the price for the same node type), AWS Managed Blockchain
 (peer node instance type, Terraform-only, since this tool's Cloud
@@ -538,10 +562,7 @@ the same rate as a normal running On-Demand instance of that type — its
 real declared `instance_platform`/`tenancy` apply the same OS multiplier/
 dedicated-tenancy rate a plain EC2 instance of that type would get, times
 instance_count), AWS CodePipeline (a flat $1/month fee per
-active pipeline), and Amazon Redshift Serverless (its base_capacity RPU
-attribute, a real, already-declared value on the workgroup resource, so
-unlike Aurora/Neptune Serverless above this needs no assumed floor at all,
-times the real per-RPU rate), and Amazon OpenSearch Ingestion (a
+active pipeline), and Amazon OpenSearch Ingestion (a
 pipeline's min_units, another real declared attribute needing no assumed
 floor, times the same per-OCU rate as OpenSearch Serverless above,
 confirmed identical across both services), and Amazon AppStream 2.0 (fleet
@@ -592,7 +613,7 @@ this tool's per-resource parsers can't make), times the real
 provisioned_concurrent_executions count). Amazon Bedrock Provisioned
 Throughput (`aws_bedrock_provisioned_model_throughput`'s model_units (a
 real, already-declared attribute needing no assumed floor, same pattern as
-Redshift Serverless above), times a per-model-unit-hour rate). model_arn is
+OpenSearch Ingestion above), times a per-model-unit-hour rate). model_arn is
 resolved against a hand-maintained model-ID lookup table (Terraform/Pulumi
 only: no CloudFormation resource for this exists at all), since AWS's price
 catalog indexes this by human-readable model name rather than the technical
@@ -617,11 +638,7 @@ as `autoscaling_group_unresolved`): resolving which base model it was
 fine-tuned from would need a cross-reference this project deliberately
 limits to its four existing cases, `aws_autoscaling_group`/
 `aws_sagemaker_endpoint`/Aurora Serverless v2's cluster join/Neptune
-Serverless's cluster join, below and above. AWS Glue Jobs
-(`aws_glue_job`'s `worker_type` x `number_of_workers`, mapped to AWS's real
-per-worker DPU sizing: Standard/G.1X/G.025X/G.2X against the standard
-DPU-hour rate, G.4X/G.8X against the memory-optimized rate, Terraform-only,
-same posture as Managed Blockchain above).
+Serverless's cluster join, below and above.
 
 EC2 Auto Scaling groups (`aws_autoscaling_group`) are also priced: the
 first of four resources this tool cross-references another declared
@@ -645,7 +662,26 @@ count (a refreshed state/plan carries the real running count instead), so
 unset rather than as a deliberate scale-to-zero. An
 `instance_state` of `stopped`/`stopping` on a plain `aws_instance` drops
 its compute (and its released public IPv4) to $0, keeping only its EBS
-volumes. An
+volumes.
+
+**Spot-market capacity** is recognized (`aws_spot_instance_request`, an
+`aws_instance` with `instance_market_options { market_type = "spot" }`, and
+an EKS node group with `capacity_type = "SPOT"`, plus the
+CloudFormation / Pulumi equivalents). The real Spot price is per-AZ and
+time-varying — not in the bundled catalog — so without `--with-usage` a
+Spot resource's compute line is `[Not available]` rather than billed at the
+much higher on-demand rate (storage / EBS still price normally). With
+`--with-usage` (Pro) a live `ec2:DescribeSpotPriceHistory` quote is folded
+into the headline number; see [Usage-aware
+FinOps](#usage-aware-finops---with-usage). `aws_spot_fleet_request` and
+`aws_ec2_fleet` (+ CFN / Pulumi) are recognized too: a fleet whose
+launch-template overrides resolve to a single instance type is treated as
+that many Spot instances (the same live-quote rule above applies), while a
+weighted multi-instance-type fleet has no single rate to bill and renders
+`[Not available]` (`ec2_fleet_unresolved`) rather than the silent $0 an
+unmapped type used to get.
+
+An
 ASG using `mixed_instances_policy`
 (multiple possible instance types with weighted overrides) isn't resolved
 from declared config alone: there's no way to know which override
@@ -698,7 +734,11 @@ and Pulumi support this cross-reference too, same join as the ASG one
 above. Standalone Elastic IPs (`aws_eip`/`AWS::EC2::EIP`/
 `aws:ec2/eip:Eip`) are also priced (public IPv4 addresses have billed the
 same whether in use or not since Feb 2024, so an EIP resource is priced
-identically regardless of association status).
+identically regardless of association status). When an `aws_eip` is
+associated to an `aws_instance` that *also* has an auto-assigned public IP
+(`associate_public_ip_address`), the address is counted once, on the EIP —
+the instance's own public-IPv4 line is cleared so the same real address
+isn't billed twice.
 
 Any other AWS resource type (one this tool hasn't mapped a price for at
 all) still shows up in the tree and counts toward the resource total,
@@ -754,6 +794,29 @@ it's a live snapshot of the cluster's actual current size
 (`ClusterStorageSize`), not a monthly volume you could sensibly declare
 in advance for a not-yet-existing cluster the way expected traffic can
 be.
+
+AWS Glue jobs (`aws_glue_job`) and Amazon Redshift Serverless
+(`aws_redshiftserverless_workgroup`) are both **left unpriced** (shown as
+`[Not available]`), not billed against their declared capacity. Both are
+purely usage-metered — Glue bills DPU-seconds only while a job run
+executes, Redshift Serverless bills RPU-seconds only while a query runs,
+and an idle one of either costs $0 — so `worker_type`/`number_of_workers`
+and `base_capacity` are the ceiling a run can reach, not an hourly rate to
+multiply out 24/7. Pricing them from declared config alone would overstate
+a lightly-used job or workgroup by 10-25× or more, so it isn't done. (Glue
+was previously priced from `worker_type` × `number_of_workers`, and
+Redshift Serverless from `base_capacity` — both were a large, one-sided
+overcharge and are now gone.)
+
+A **cross-region RDS read replica** (`aws_db_instance` whose
+`replicate_source_db` is a full ARN, with no `allocated_storage`/`engine`
+of its own) is also left `[Not available]` rather than billed. Its storage
+size and engine are set by a source DB in another region — definitionally
+outside this configuration — so a generic instance rate plus $0 storage
+would silently undercharge it (a replica always provisions a full copy of
+the source's storage). Declare `allocated_storage`/`engine` on the replica,
+or point CloudCostTree at the source region too, to price it. Previously
+this was a silent partial charge.
 
 Kinesis Firehose (`aws_kinesis_firehose_delivery_stream`) got a real
 pricing **bug fix**, not just a `--with-usage` addition: a delivery
@@ -1134,8 +1197,19 @@ as before (a printed note, never a failure).
   net-negative, which is exactly what the caveat asks you to check first.
 - **Live EC2 Spot pricing**: pulls the current Spot price
   (`ec2:DescribeSpotPriceHistory`, Linux/UNIX) for every distinct EC2
-  instance type in your infrastructure and quotes the real
-  on-demand-vs-Spot delta. Interruption risk is always called out in the
+  instance type in your infrastructure. This feeds two things. For an
+  **on-demand** instance, it's a recommendation quoting the real
+  on-demand-vs-Spot delta. For an instance already declared as **Spot
+  capacity** (`aws_spot_instance_request`, `instance_market_options {
+  market_type = "spot" }`, or an EKS node group `capacity_type = "SPOT"`),
+  the live quote is folded straight into the **cost tree's own headline
+  number** — the compute line prices at the real current Spot rate instead
+  of rendering `[Not available]`, which is what a Spot instance shows
+  without this flag (it's never billed at the ~2-3× higher on-demand rate).
+  Storage / public-IPv4 / data-transfer lines still bill at their
+  on-demand rates — Spot only discounts compute — and a non-Linux Spot
+  instance stays `[Not available]` (only the Linux/UNIX Spot rate is
+  fetched). Interruption risk is always called out in the
   message (Spot capacity can be reclaimed with two minutes' notice), this
   tool has no way to know if your workload tolerates that, so it never
   hides the tradeoff.
@@ -1443,13 +1517,14 @@ range as its own synthetic line (`cross_az_data_transfer`,
 `igw_internet_egress`, `inter_region_egress`), with a dedicated **MEASURED
 DATA TRANSFER** section breaking each down per source resource or destination
 region (plus an "unattributed" line for ENIs that map to no resource in the
-IaC). Same-AZ transfer is free and never counted; traffic to public AWS
-endpoints in the same region (e.g. S3, DynamoDB) is not counted — free or
-regional depending on the service, and Flow Logs can't tell which. No usable
-Flow Log ⇒ these dimensions stay unpriced and disclosed, exactly as without
-the flag. When a flow log's format carries the `pkt-dst-aws-service` field,
-the NAT-Gateway → Gateway-VPC-endpoint recommendation also upgrades from a
-$0 ceiling nudge to a measured eliminable amount.
+IaC). Same-AZ transfer is free and never
+counted; traffic to public AWS endpoints in the same region (e.g. S3,
+DynamoDB) is not counted — free or regional depending on the service, and
+Flow Logs can't tell which. No usable Flow Log ⇒ these dimensions stay
+unpriced and disclosed, exactly as without the flag. When a flow log's
+format carries the `pkt-dst-aws-service` field, the NAT-Gateway →
+Gateway-VPC-endpoint recommendation also upgrades from a $0 ceiling nudge to
+a measured eliminable amount.
 
 ## Reconcile with your real bill
 
@@ -2129,7 +2204,9 @@ only ever downloads a prebuilt binary, never the private source repo),
 GitLab CI, Azure Pipelines, and Bitbucket Pipelines, JSON/Markdown output,
 and PR annotations.
 The dedicated `ci` command group (`report` never fails the build;
-`check`/`diff` fail on a blocking policy violation) shares Free's
+`check`/`diff` fail on a blocking policy violation; `comment` posts the
+same report straight to the PR/MR on GitHub, GitLab, Azure Repos, or
+Bitbucket — see [CI.md](CI.md)'s `ci comment` section) shares Free's
 1,000-runs/month quota across a repo's pipelines (tracked per-repo
 server-side on GitHub Actions, since a fresh runner every job has nothing
 local to count against); Pro is unlimited, confirmed live on every run via
@@ -2322,7 +2399,7 @@ deactivate JSON envelope. See `pkg/license`.
 
 ```
 cmd/cloudcosttree/   CLI entrypoint, flag parsing, Free/Pro gating (license_gate.go)
-pkg/parser/          Terraform (plan + state), Terragrunt, CloudFormation, Pulumi → model.Infrastructure
+pkg/parser/          Terraform (plan + state), Terragrunt, Atmos, CloudFormation, Pulumi, rendered K8s manifests → model.Infrastructure
 pkg/model/           The shared Resource/Infrastructure schema every parser/renderer speaks
 pkg/cost/            PriceCatalog + Calculator: prices.json → a resource's/tree's $/mo
 pkg/pricing/         update-prices/generate-prices: AWS Price List Bulk API → prices.json
