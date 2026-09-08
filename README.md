@@ -524,7 +524,16 @@ input or a real restore-from-backup file system; plus, on top of storage,
 real declared provisioned throughput capacity — rated per its actual
 deployment generation and Single-AZ/Multi-AZ/HA topology, e.g. ONTAP Gen-2
 Single-AZ is ~2.2× Gen-1 — and user-provisioned SSD IOPS above the free
-3-IOPS-per-GiB baseline, each a genuinely separate FSx billing dimension),
+3-IOPS-per-GiB baseline, each a genuinely separate FSx billing dimension.
+Lustre is the exception to "throughput is an add-on surcharge": its real
+declared `storage_type`/`per_unit_storage_throughput` (`drive_cache_type`
+for an HDD file system's optional 20%-of-storage SSD read cache) select a
+genuinely different per-GB storage rate outright — SSD 50/100/200 MB/s/TiB
+(PERSISTENT_1) and 125/250/500/1000 (PERSISTENT_2), HDD 12/40
+(PERSISTENT_1 only, with or without the read cache) — confirmed against
+the real bulk offer file's distinct per-tier SKUs, up to 4.3× apart;
+previously every Lustre file system was priced at the cheapest 50 MB/s/TiB
+SSD tier regardless of its real declared throughput),
 Kinesis Data Analytics v2 (priced at the single-KPU
 minimum every application runs at least, same "documented floor" posture as
 Lambda/SQS/SNS below), AWS App Runner (priced at an assumed 1 vCPU/2GB
@@ -602,8 +611,12 @@ rate). AWS MSK Serverless (a flat $0.75/hr per-cluster fee; ingress/egress/
 storage/partition usage components aren't modeled). Amazon Q Business
 (an index's edition, Starter or Enterprise, times its declared
 capacity_configuration.units, another real attribute needing no assumed
-floor). AWS Client VPN (a flat $0.10/hr per-endpoint fee; per-connection
-usage isn't modeled). Standalone EBS snapshots (`aws_ebs_snapshot`'s
+floor). AWS Client VPN ($0.10/hr per associated subnet — the real bulk SKU
+bills "per Client VPN Endpoint Association Hour", not per endpoint, so an HA
+endpoint with `aws_ec2_client_vpn_network_association` resources for 2-3
+AZs is priced at 2-3x an endpoint with none; an endpoint whose associations
+can't be resolved in this same plan/state falls back to one endpoint-hour
+rather than $0; per-connection usage isn't modeled). Standalone EBS snapshots (`aws_ebs_snapshot`'s
 volume_size, a Computed attribute only known post-apply, reuses the
 existing snapshot-size pricing this tool already had for RDS backups, no
 new pricing wiring needed). AWS Lambda Provisioned Concurrency (an assumed
@@ -726,12 +739,16 @@ and Amazon Neptune Serverless above for the third and fourth): its
 `instance_type` lives on a separate
 `aws_sagemaker_endpoint_configuration` resource, referenced by name via
 `endpoint_config_name`, resolved by the same pre-pass-over-every-resource
-pattern `aws_autoscaling_group` uses above. A multi-variant endpoint
-configuration (`production_variants` with more than one entry, an A/B
-test setup) is priced against its first declared variant only, since this
-tool has no way to know real traffic split across variants. CloudFormation
-and Pulumi support this cross-reference too, same join as the ASG one
-above. Standalone Elastic IPs (`aws_eip`/`AWS::EC2::EIP`/
+pattern `aws_autoscaling_group` uses above. The first variant's
+`initial_instance_count` is priced through — AWS bills every instance
+behind an instance-based real-time endpoint, so a 2-instance HA endpoint
+(the minimum for an SLA-backed deployment) costs twice a single-instance
+one — defaulting to one instance when the count is unset. A multi-variant
+endpoint configuration (`production_variants` with more than one entry, an
+A/B test setup) is priced against its first declared variant only, since
+this tool has no way to know real traffic split across variants.
+CloudFormation and Pulumi support this cross-reference too, same join as
+the ASG one above. Standalone Elastic IPs (`aws_eip`/`AWS::EC2::EIP`/
 `aws:ec2/eip:Eip`) are also priced (public IPv4 addresses have billed the
 same whether in use or not since Feb 2024, so an EIP resource is priced
 identically regardless of association status). When an `aws_eip` is
@@ -962,7 +979,8 @@ telemetry needed, no AWS account needed):
   below gp3's bundled baseline.
 - **Previous-generation instance type** (t2→t3, m4→m5, c4→c5, r4→r5,
   m3/c3/r3→…5): same size class, cheaper and faster, across EC2/RDS/
-  ElastiCache.
+  ElastiCache/OpenSearch (e.g. `m4.large.search` → `m5.large.search` — the
+  `.search` suffix and size are preserved, only the family moves).
 - **x86 → Graviton (ARM64)** (t3→t4g, m5→m6g, c5→c6g, r5→r6g, EC2/RDS):
   cheaper at the same size, but unlike every other repricing rule above
   this changes CPU architecture, so the message always asks you to confirm
@@ -971,28 +989,41 @@ telemetry needed, no AWS account needed):
   figure on **Pro** when the catalog has a matching rate for that specific
   size (Graviton coverage in the published catalog is narrower than x86's:
   a size with no matching rate is silently skipped, same as any other
-  repricing rule); Free sees an unquantified ~20-40% nudge instead. Not yet
-  applied to ElastiCache: real-per-node-type pricing landed, but this
-  rule's family-swap logic still needs a follow-up to parse ElastiCache's
-  composed `<node_type>_<engine>` instance-type format.
+  repricing rule); Free sees an unquantified ~20-40% nudge instead. Also
+  applied to ElastiCache node types (`cache.m5`/`r5`/`c5`/`t3` →
+  Graviton), with a softer message — ElastiCache runs the engine binary
+  itself, so a `node_type` change is a managed migration with a brief
+  failover, not an architecture port. `--write-changes` can splice the new
+  `node_type` into the `aws_elasticache_cluster` /
+  `aws_elasticache_replication_group` block, but (like the EC2/RDS Graviton
+  rec) it's held back from a plain `--optimize` run for explicit review.
 - **RDS Multi-AZ**: flags the doubled compute cost, asking you to confirm
   HA is genuinely needed.
 - **RDS backup retention above 30 days**: re-priced at the 30-day cap.
 - **NAT Gateway, low traffic**: compares the fixed hourly rate against a
   `t3.micro` NAT instance when monthly data processed is under 15GB.
+- **EKS Extended Support**: an `eks_cluster` that opted into extended
+  support (`upgrade_policy.support_type = "EXTENDED"`) pays a flat
+  per-cluster surcharge roughly 6x the standard control-plane fee; the
+  saving is that surcharge, re-priced away. The message is explicit that
+  removing it means a real Kubernetes upgrade, not a config toggle.
 - **DynamoDB provisioned, high capacity**: suggests on-demand when combined
-  RCU+WCU is high. This tool doesn't model on-demand's real per-request rate
-  yet, so the comparison is against a flat assumed-low-capacity baseline, not
-  your table's real traffic — a busy table running near its provisioned
-  RCU/WCU can genuinely cost *more* on-demand, so confirm your real
-  utilization before switching. Never auto-applied by `--optimize` for
-  exactly this reason.
+  RCU+WCU is high. With `--with-usage` (or a `--usage` file) the comparison
+  uses this table's own real observed `ConsumedRead/WriteCapacityUnits`; on
+  the declared-only path it falls back to a flat assumed-low-capacity
+  baseline, and the message says so — a busy table running near its
+  provisioned RCU/WCU can genuinely cost *more* on-demand, so confirm your
+  real utilization before switching. Never auto-applied by `--optimize`
+  for exactly this reason.
 - **EC2 fleet without an Auto Scaling Group**: a `count > 1` resource with
   no ASG settings; informational (elasticity, not a quantified saving).
 - **Reserved Instance / Savings Plan candidate**: steady-state (no
-  autoscaling, default 24/7 hours), high-cost EC2/RDS. Quantified with a
-  real $/mo figure on **Pro** when the catalog has a matching Reserved
-  rate; Free/no-catalog-match sees the unquantified nudge. See
+  autoscaling, default 24/7 hours), high-cost EC2/RDS/Aurora, **and**
+  ElastiCache / Redshift / OpenSearch / MemoryDB (Reserved Cache Nodes /
+  Reserved Nodes / Reserved Instances — a $3k/mo Redshift warehouse
+  running 24/7 gets the nudge now too). Quantified with a real $/mo figure
+  on **Pro** when the catalog has a matching Reserved rate;
+  Free/no-catalog-match sees the unquantified nudge. See
   [below](#real-reserved-instance-savings).
 - **Non-production resource running 24/7**: an EC2/RDS/RDS Cluster
   resource tagged or named as dev/staging/test/qa/sandbox (an `Environment`-
@@ -1014,15 +1045,27 @@ telemetry needed, no AWS account needed):
   `aws_s3_bucket_lifecycle_configuration` resource, or the older
   deprecated `lifecycle_rule` block on `aws_s3_bucket` itself, no dollar
   figure, since this tool has no way to know a bucket's real object
-  count/size/access pattern). Shown standalone only when there's no real
-  cost saving elsewhere (condensed, one line per issue), or always
-  alongside cost recommendations with `--include-governance`.
+  count/size/access pattern), and a CloudWatch log group with no
+  `retention_in_days` set (AWS keeps the events forever, so storage cost
+  grows without bound — no dollar figure for the same reason, retention
+  doesn't correlate with ingest volume). Shown standalone only when
+  there's no real cost saving elsewhere (condensed, one line per issue),
+  or always alongside cost recommendations with `--include-governance`.
 
 Only shown when `--with-usage` (**Pro**) actually fetched real telemetry;
 never a guess: **real CPU-based right-sizing**, **live Spot pricing**,
 **confirmed orphaned EBS volumes/snapshots**, **confirmed empty-target-group
-load balancers**, **confirmed unassociated Elastic IPs**, and **real
-Lambda memory right-sizing**; see [below](#usage-aware-finops---with-usage).
+load balancers**, **confirmed unassociated Elastic IPs**, **real Lambda
+memory right-sizing**, and **NAT Gateway consolidation** (one-NAT-per-AZ
+whose combined measured egress is low enough that the fixed-fee saving
+beats the added cross-AZ transfer — with an explicit availability caveat);
+see [below](#usage-aware-finops---with-usage).
+
+The section header also shows the addressable share — `~28% of the
+~$117.75/month estimate is addressable by the recommendations below` — so
+the potential-savings figure carries a sense of scale, not just a bare
+dollar amount (also in `--export json` as `addressable_share_percent` /
+`monthly_total_usd`).
 
 Display policy: cost recommendations always come first, ranked by impact
 (top 3 on Free, top 15 on Pro). If there's no real economic saving
@@ -1195,6 +1238,17 @@ as before (a printed note, never a failure).
   holds RIs for), so this tool never guesses either way. Stranding a paid
   RI commitment while paying on-demand for a smaller instance is often
   net-negative, which is exactly what the caveat asks you to check first.
+- **gp3 IOPS / throughput over-provisioning**: for a gp3 EBS volume
+  provisioned above gp3's free 3,000 IOPS / 125 MB/s baseline, pulls the
+  volume's real peak sustained I/O from CloudWatch (`AWS/EBS`
+  `VolumeReadOps`/`VolumeWriteOps` and `VolumeReadBytes`/`VolumeWriteBytes`
+  at 5-minute resolution, taking the **window maximum** across buckets — a
+  provisioned-capacity decision has to hold at the busiest interval, not an
+  average). When the peak (padded for headroom) stayed under the free
+  baseline, the provisioned excess isn't being used: repriced with it
+  removed for an exact dollar delta. IOPS and throughput are judged
+  independently. Message-only — gp3 `iops`/`throughput` isn't wired as an
+  `--optimize` flag for EBS, so it's a volume-attribute edit by hand.
 - **Live EC2 Spot pricing**: pulls the current Spot price
   (`ec2:DescribeSpotPriceHistory`, Linux/UNIX) for every distinct EC2
   instance type in your infrastructure. This feeds two things. For an
@@ -1289,6 +1343,16 @@ as before (a printed note, never a failure).
   the ones with zero registered targets across every target group behind
   them, at the load balancer's full monthly cost. Classic ELB isn't
   covered (it predates ELBv2's target-group model entirely).
+- **Idle Application Load Balancers**: reads CloudWatch
+  `AWS/ApplicationELB` `RequestCount` for every ALB with a resolvable ARN
+  and flags the ones that served almost nothing (a few hundred requests a
+  month or less) over the last 14 days, at the ALB's full monthly cost — an
+  ALB bills its fixed hourly charge whether it routes traffic or not. This
+  is a weaker signal than the empty-target-group check above and about a
+  different thing (an ALB can have healthy targets and still route nothing),
+  so it steps aside when that check already fired for the same ALB. The
+  message asks you to rule out a warm standby or a not-yet-launched
+  endpoint before deleting.
 - **Confirmed unassociated Elastic IPs**: calls `ec2:DescribeAddresses`
   for every standalone EIP this tool can resolve a real allocation ID
   for, and flags the ones confirmed unassociated, at the address's full
@@ -1324,6 +1388,19 @@ as before (a printed note, never a failure).
   repriced dollar delta, disclosing the one real tradeoff it can't
   quantify: Lambda's CPU allocation scales with `memory_size`, so Duration
   should be re-checked after lowering it.
+- **Fargate task over-provisioning**: pulls an ECS Fargate service's real
+  average CPU and memory utilization from CloudWatch (`AWS/ECS`
+  `CPUUtilization` / `MemoryUtilization`, dimensioned by the service's
+  cluster and name, 14-day lookback). When **both** sit well under what the
+  task definition reserves, recommends the smallest real Fargate
+  vCPU/memory combination (from AWS's fixed size table) that still covers
+  the observed load with headroom, at an exact repriced dollar delta.
+  Requires both dimensions to be low — a service that's CPU-idle but
+  memory-tight (or the reverse) can't be shrunk without risking the one
+  that's in use. EC2/EXTERNAL launch-type services are skipped (no per-task
+  charge to reduce). Message-only: Fargate task `cpu`/`memory` isn't a
+  `--optimize` flag, so the change is a task-definition edit you make by
+  hand.
 - **Fleet size outlier**: compares a plan's EC2/RDS resource against every
   other instance already running in that same AWS account/region
   (`ec2:DescribeInstances`/`rds:DescribeDBInstances`, grouped by instance
@@ -1554,6 +1631,17 @@ By service:
 
 Billed, but not in your IaC:
   Amazon Route 53 — $12.00/month
+
+Drift breakdown — where the delta comes from:
+  Total drift: -$36.43/month  (actual is 7% below the estimate)
+
+  Largest contributors:
+    Amazon Elastic Compute Cloud - Compute   est $180.00 → actual $150.00  (Δ -$30.00)  over-estimate
+    Amazon Route 53                          est —        → actual $12.00   (Δ +$12.00)  unmodeled-service
+    2 more services within ±3% (net -$0.10)
+
+  Top resources by drift:
+    web-1 / i-0abc123   est $61.32 → actual $54.10  (Δ -$7.22)
 ```
 
 It reads **Cost Explorer** with your own read-only credentials:
@@ -1578,6 +1666,19 @@ a re-query.
   to have opted in).
 - `--reconcile` also works on `diff`, lining the real bill up against the
   *current* (target) state.
+
+The **drift breakdown** decomposes the headline delta into where it comes
+from, biggest first. Every line is a real `actual − estimate` figure (the
+per-service deltas sum to the total — no guessed percentages), and each is
+labelled by the arithmetic relationship, not a diagnosed cause:
+`unmodeled-service` (AWS bills it, nothing in your IaC maps to it — data
+transfer, DNS, metrics), `under-estimate` (in your IaC, billed more than
+list price — usage dimensions list price doesn't cover), `over-estimate`
+(billed less — usually Savings Plans / RIs / credits, or a resource not
+running full-time). Lines within ±3% are collapsed into a count. Resource-
+level rows cover everything Cost Explorer breaks out under the EC2-Compute
+service: instances, EBS volumes, NAT gateways, EIPs. The same breakdown is
+in `--export json` under `reconciliation.drift`.
 
 The estimate–vs–actual delta report is the point: continuous reconciliation
 of what the IaC intends against what AWS is really charging, including the
