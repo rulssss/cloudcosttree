@@ -2244,9 +2244,10 @@ The tag key has no default and is never guessed — case-sensitive exact
 match against each resource's tags, same as this tool's policy tag
 conditions (`tags.<Key>`, see [Policies](#policies) above).
 Resources missing the tag key entirely are grouped under `(untagged)`,
-never silently dropped from the totals. Only included in `--export json`
-for now; the `md`/`csv`/`html`/`pr-comment` exports don't have a by-tag
-table yet.
+never silently dropped from the totals. Every export format carries the
+breakdown: `json` as a nested `by_tag` object, and `md`/`csv`/`html`/
+`pr-comment` as a "Cost Allocation by Tag" table (the group totals) plus a
+"Tag Group Changes" table (the moves, adds, removes, and in-place changes).
 
 ### Cost drift alerts in CI
 
