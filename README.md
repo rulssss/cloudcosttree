@@ -2391,6 +2391,24 @@ real ARN or type-scoped narrowing today; the remainder are resources with
 literally no static or resource-level identity to scope to (an
 `aws_iam_policy_attachment`'s real target varies per instance; a handful
 of services expose no per-resource ARN at all) and correctly stay `"*"`.
+
+A generated policy also ends with one trailing `{"Resource": "*"}`
+statement that no input ever tightens — separate from resource scoping,
+many AWS actions don't support resource-level permissions *at all*: the
+read/enumeration calls (`ec2:DescribeInstances`, `ec2:DescribeVolumes`,
+`logs:DescribeLogGroups`, `elasticache:DescribeCacheClusters`, …), plus a
+few like `ec2:RunInstances` that IAM only accepts with `"*"`, or
+`ec2:CreateTags`/`iam:PassRole` whose target (a not-yet-created resource,
+a role ARN not declared in the tree) can't be resolved from a static
+scan. `iam` groups every such action into this one statement; the
+scopable actions sit in the specific statements above it.
+`--state`/`--account-id`/`--region` don't touch it — re-running against a
+deployed `terraform.tfstate` resolves the type-only ARNs (above) but
+never these. When any `Resource` isn't a full per-instance ARN, the text
+report prints an **ARN scoping notes** block (and `-o policy.json` also
+writes a sibling `policy.scope-notes.txt`) saying, per resource, which of
+the three cases it is and whether a `--state` rescan would tighten it.
+
 Review the output before attaching it to any real IAM identity, same as
 you would any least-privilege tool's starting point.
 
