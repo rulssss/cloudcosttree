@@ -76,11 +76,13 @@ price is either genuinely free
 (a VPC, a security group) or just hasn't been mapped yet; see below for the
 full, honest list of what that covers and why. The [IAM policy
 generator](#iam-policy-generator) has its own, separate coverage: 1706
-resource types today, each with a real, correctly scoped `Action` list and
-`Resource: "*"`. Narrowing `Resource` to the exact ARNs a deployment
-declares — per-resource granularity — is a planned Pro capability, not
-implemented yet. An unmapped resource type shows up as a clearly labeled
-warning, never a silent gap.
+resource types today, each with a real, correctly scoped `Action` list.
+`Resource` is `"*"` on Free; Pro narrows it to the real per-instance ARNs a
+deployment declares wherever a static scan can resolve them (88.8% of
+mapped types today — the rest are AWS-assigned identifiers no static scan
+can know ahead of a real deploy, and correctly stay wildcarded with a
+labeled note, never guessed). An unmapped resource type shows up as a
+clearly labeled warning, never a silent gap.
 
 ## Table of contents
 
@@ -2319,7 +2321,9 @@ unlike the normal desktop `license activate` flow.
 ```
 cloudcosttree iam ./infra/                          # Terraform directory (static scan, no init/plan/credentials)
 cloudcosttree iam ./infra/ --plan plan.json          # + a real terraform show -json plan for precise per-resource actions
+cloudcosttree iam ./infra/ --state terraform.tfstate # + an already-deployed state for the exact ARNs (Pro)
 cloudcosttree iam ./infra/ --output json -o policy.json
+cloudcosttree iam ./infra/ --account-id 111122223333 --region us-east-1  # fill the account/region ARN segments (Pro)
 cloudcosttree iam cfn-template.json                  # CloudFormation
 cloudcosttree iam pulumi-export.json                 # `pulumi stack export > pulumi-export.json`
 ```
@@ -2340,15 +2344,32 @@ CloudFormation and Pulumi input are always scanned statically (a template
 alone, or a stack export, carries no plan-level action detail the way a
 Terraform plan does).
 
-**`Resource` scoping:** every generated policy uses `"Resource": "*"`. The
-`Action` list is real and correctly scoped to the specific IAM API calls
-each resource type needs; the `Resource` element is not narrowed to the
-exact ARNs a deployment declares (a `s3:DeleteBucket` grant works against
-any bucket in the account, not just this one). Per-resource ARN scoping is
-a planned Pro capability and is not implemented yet — today the full,
-`Resource: "*"` generator is the same on both tiers. Review the output
-before attaching it to any real IAM identity, same as you would any
-least-privilege tool's starting point.
+**`Resource` scoping (Pro):** the `Action` list is real and correctly
+scoped to the specific IAM API calls each resource type needs, on both
+tiers. On Free, `Resource` stays `"*"` (an `s3:DeleteBucket` grant works
+against any bucket in the account, not just this one). On Pro, `Resource`
+narrows to the real ARN each declared instance resolves to — every ARN
+format is transcribed from the AWS Service Authorization Reference, never
+guessed; a format that can't be confirmed there just stays `"*"` with a
+labeled note rather than fabricated. A static scan (plain HCL, a
+CloudFormation template, a bare Terraform plan) can resolve most of a
+deployment's own declared names and dependency references, but not an
+identifier AWS only assigns once a resource is actually created (an
+`aws_instance`'s own instance id, for example) — those correctly narrow to
+the resource *type* only (e.g. `arn:aws:ec2:us-east-1:111122223333:instance/*`,
+still strictly narrower than a bare `*`) until scanned again against a real,
+already-deployed state: `--state <path>` (or a Pulumi stack export) reads
+an applied `terraform.tfstate`/`terraform show -json` and resolves the
+exact ARN for every resource that carries one. `--account-id`/`--region`
+fill the account/region segments of every scoped ARN when a static scan
+can't otherwise know them; a scanned resource's own known region always
+wins over `--region`. Across all 1706 mapped resource types, 88.8% get a
+real ARN or type-scoped narrowing today; the remainder are resources with
+literally no static or resource-level identity to scope to (an
+`aws_iam_policy_attachment`'s real target varies per instance; a handful
+of services expose no per-resource ARN at all) and correctly stay `"*"`.
+Review the output before attaching it to any real IAM identity, same as
+you would any least-privilege tool's starting point.
 
 **Privilege-escalation review:** a least-privilege deployer policy still
 grants real permissions, and some of them are the building blocks of
@@ -2373,8 +2394,9 @@ action in it is cross-checked against this tool's own mapping table. This
 is a safety disclosure, not a Pro feature: it runs identically on both
 tiers. It's expected output for a deployer that manages IAM or hands roles
 to compute — the point is that you attach such a policy knowing it, having
-restricted who can assume the deployer identity and narrowed `Resource`
-first.
+restricted who can assume the deployer identity (`Resource` narrowing
+above helps here on Pro, but doesn't replace it — a privesc technique
+lives in the `Action` combination, not the `Resource` scope).
 
 ## VS Code extension
 
@@ -2470,7 +2492,7 @@ Reserved Instance/Spot pricing, and usage-aware right-sizing.
 | Cost guardrails & tag/FinOps policies (`policy check`, and policy enforcement inside tree/analyze/diff/ci) | Not included: cost data stays informational | Unlimited, can fail a build on violation |
 | Write simulated what-if changes to a new file/directory (`--write-changes`) | Not included | Included |
 | Input format: Atmos (Cloud Posse) stacks | Not included | Included |
-| IAM policy generator (`iam`, 1706 resource types) | Full policy, `Resource: "*"` | Full policy, `Resource: "*"` (per-resource ARN scoping planned) |
+| IAM policy generator (`iam`, 1706 resource types) | Full policy, `Resource: "*"` | Full policy, `Resource` scoped to the real per-instance ARNs (88.8% of mapped types; `--state`/`--account-id`/`--region` for full precision) |
 | Cloud provider support | AWS | AWS |
 | VS Code extension | Included | Included |
 
