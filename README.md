@@ -999,6 +999,22 @@ telemetry needed, no AWS account needed):
   `node_type` into the `aws_elasticache_cluster` /
   `aws_elasticache_replication_group` block, but (like the EC2/RDS Graviton
   rec) it's held back from a plain `--optimize` run for explicit review.
+  Also applied to an x86_64 `aws_lambda_function` (`architectures = ["arm64"]`)
+  — cheaper at the same `memory_size`, same "confirm compiled/native
+  dependencies build for arm64 first" caveat, and held back from
+  `--optimize` for explicit review; quantified on **Pro** when the catalog
+  has a real arm64 rate for the region, silent otherwise.
+- **API Gateway fronting a single Lambda → Lambda Function URL**: when an
+  `api_gateway` resource is confirmed to be a pure single-Lambda
+  pass-through (exactly one Lambda backend wired with a real
+  `aws_lambda_permission`, only `AWS_PROXY` integrations, no custom
+  authorizer / non-default method auth / usage plan / custom domain / WAF
+  anywhere), a `aws_lambda_function_url` gives that function a direct HTTPS
+  endpoint at no AWS charge — eliminating the API Gateway's entire
+  per-request cost. Full monthly cost is the saving; message-only (it's
+  removing one resource and adding a different one, not a repriceable
+  attribute), and the message names what you'd give up (request
+  transformation, throttling, a Cognito/custom authorizer).
 - **RDS Multi-AZ**: flags the doubled compute cost, asking you to confirm
   HA is genuinely needed.
 - **RDS backup retention above 30 days**: re-priced at the 30-day cap.
@@ -1039,6 +1055,12 @@ telemetry needed, no AWS account needed):
   Reserved/Graviton rules above it needs no new pricing data asset, just
   logic over what's already declared. A resource that already has a reduced
   `HoursPerMonth` set (already scheduled) is never re-flagged.
+- **Uncosted dynamic compute** (no dollar figure): an `eks_cluster` with
+  EKS Auto Mode (`compute_config.enabled`) or a `guardduty_detector_feature`
+  protection plan — both bill for runtime resources (AWS-provisioned EC2
+  Managed Instances, GB scanned) that no static config declares, so the
+  tree can't price them. Flagged as an explicit "this cost isn't in the
+  number above" note rather than a silent omission.
 - **Governance nudges** (no dollar figure): missing tags/generic resource
   names, Terraform's implicit `default_*` resources (default security
   group, VPC, route table, network ACL) left unmanaged, and an S3 bucket
