@@ -9,13 +9,15 @@
 # Usage (from any repo):
 #
 #   - uses: actions/checkout@v4
-#   - uses: rulssss/cloudcosttree@main
+#   - uses: rulssss/cloudcosttree@v1        # or @main for latest, @v1.0.0 to pin
 #     with:
 #       infra-path: ./infra
 #       policies-path: policies.yaml   # optional
 #
 # The calling workflow must check out its own repo first — infra-path is
 # resolved relative to that checkout.
+#
+# Released to the GitHub Marketplace — see RELEASING.md for the tag flow.
 name: "CloudCostTree"
 description: "Analyze Terraform/CloudFormation/Pulumi cost impact and policy compliance, and comment on the PR."
 author: "CloudCostTree"

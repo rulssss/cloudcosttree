@@ -53,7 +53,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Enforce cost & governance policies
-        uses: rulssss/cloudcosttree@main
+        # @v1 pins the current major (auto-updates on compatible releases);
+        # @main always tracks the latest.
+        uses: rulssss/cloudcosttree@v1
         with:
           infra-path: ${{ env.INFRA_PATH }}
           policies-path: ${{ env.POLICIES_PATH }}
