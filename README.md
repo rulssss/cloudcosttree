@@ -2323,12 +2323,70 @@ nobody reads.
 
 ## CI/CD
 
-See [CI.md](CI.md) for the full guide: GitHub Actions (a ready-to-use
-composite action, published at
-[`rulssss/cloudcosttree`](https://github.com/rulssss/cloudcosttree) so it
-only ever downloads a prebuilt binary, never the private source repo),
-GitLab CI, Azure Pipelines, and Bitbucket Pipelines, JSON/Markdown output,
-and PR annotations.
+See [CI.md](CI.md) for the full guide: GitHub Actions, GitLab CI, Azure
+Pipelines, and Bitbucket Pipelines, JSON/Markdown output, and PR
+annotations.
+
+### GitHub Action
+
+A ready-to-use composite action lives at the root of the public
+[`rulssss/cloudcosttree`](https://github.com/rulssss/cloudcosttree) repo
+([`action.yml`](action.yml)) and is listed on the
+[GitHub Marketplace](https://github.com/marketplace/actions/cloudcosttree).
+It downloads a prebuilt `cloudcosttree` binary + price catalog from that
+repo's Releases and runs `cloudcosttree ci report|check|diff` against your
+infrastructure — it never builds from, exposes, or depends on the private
+source.
+
+Using it is optional — the
+[example workflows](.github/workflows/cloudcosttree.yml) call it, but you
+can also install the CLI by hand (see [CI.md](CI.md)). Pin `@v1` for the
+current major (moves forward automatically on compatible updates),
+`@v1.0.0` for an exact release, or `@main` to track the latest.
+
+```yaml
+name: CloudCostTree
+on:
+  pull_request:
+    paths: ["**.tf", "**.tfvars", "infra/**"]
+permissions:
+  contents: read
+  pull-requests: write   # to post/update the PR comment
+jobs:
+  cost:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rulssss/cloudcosttree@v1
+        with:
+          infra-path: ./infra
+```
+
+**Inputs** (all optional except `infra-path`):
+
+| Input | Default | Description |
+|---|---|---|
+| `infra-path` | — | **Required.** Path to the infrastructure to analyze (Terraform root, `.tfstate`, CloudFormation template, Pulumi stack export). In `diff` mode this is the current/PR-branch side. |
+| `baseline-path` | `""` | Baseline infra to compare `infra-path` against. Setting it switches the default mode to `diff`. |
+| `policies-path` | `""` | Path to `policies.yaml`. Falls back to `./policies.yaml`, then `~/.cloudcosttree/policies.yaml`, same as the CLI. |
+| `mode` | `""` | `report` (never fails the build), `check` (fails on blocking policy violations), or `diff` (report + check against a baseline). Defaults to `diff` when `baseline-path` is set, otherwise `report`. |
+| `comment-on-pr` | `"true"` | Post (or update) the analysis as a PR comment on `pull_request` events. |
+| `fail-on-blocking` | `"true"` | Fail the step on a blocking (`error`/`deny`) policy violation (exit code 2). Non-blocking `warn` violations (exit code 1) never fail the step. |
+| `release-version` | `latest` | Which `cloudcosttree` release tag to download the binary + price catalog from. |
+| `terraform-version` | `1.9.8` | Terraform version to install when `infra-path` needs a live `terraform plan` and the runner has no `terraform` on `PATH`. Ignored if Terraform is already installed (e.g. via `hashicorp/setup-terraform`). |
+| `license-key` | `""` | CloudCostTree Pro license key (pass a GitHub secret, never a literal value). Confirmed live on every run, no local state, no per-machine activation seat consumed. Omit to run as Free. |
+| `github-token` | `${{ github.token }}` | Token used to download the release asset and post the PR comment. |
+
+**Outputs:**
+
+| Output | Description |
+|---|---|
+| `exit-code` | `cloudcosttree`'s own exit code: `0` clean, `1` non-blocking violations only, `2` a blocking violation. |
+| `violations-found` | `"true"` when `exit-code` is non-zero (any violation, blocking or not). |
+
+See [CI.md](CI.md#using-the-cloudcosttree-action-directly) for a `diff`-mode
+example and for branching a downstream step on the outputs.
+
 The dedicated `ci` command group (`report` never fails the build;
 `check`/`diff` fail on a blocking policy violation; `comment` posts the
 same report straight to the PR/MR on GitHub, GitLab, Azure Repos, or

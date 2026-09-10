@@ -57,7 +57,9 @@ jobs:
           path: base
 
       - name: CloudCostTree cost diff
-        uses: rulssss/cloudcosttree@main
+        # @v1 pins the current major (auto-updates on compatible releases);
+        # @main always tracks the latest.
+        uses: rulssss/cloudcosttree@v1
         with:
           infra-path: current/${{ env.INFRA_PATH }}
           baseline-path: base/${{ env.INFRA_PATH }}

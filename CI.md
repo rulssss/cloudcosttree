@@ -48,7 +48,7 @@ Copy
 [`cost-guard.yml`](https://github.com/rulssss/cloudcosttree/blob/main/.github/workflows/cost-guard.yml)
 (policy enforcement that fails the build), both from the public
 [`rulssss/cloudcosttree`](https://github.com/rulssss/cloudcosttree) repo,
-already wired to `uses: rulssss/cloudcosttree@main` (downloads a prebuilt
+already wired to `uses: rulssss/cloudcosttree@v1` (downloads a prebuilt
 binary; never touches CloudCostTree's private source), into your own
 repository's `.github/workflows/`, then:
 
@@ -59,10 +59,14 @@ repository's `.github/workflows/`, then:
    live on every run, no per-machine activation seat spent doing it (unlike
    `cloudcosttree license activate`). Leave it out to run as Free.
 
-That's it: no marketplace listing required, no extra permissions beyond
-what's already declared in the files, no signup, and (via the public action)
-no source code exposed either way. Open a PR that touches infrastructure
-and you'll get:
+That's it. The action is also on the
+[GitHub Marketplace](https://github.com/marketplace/actions/cloudcosttree),
+but you don't have to go through it — `uses: rulssss/cloudcosttree@v1` (or
+`@main` for the latest, or `@v1.0.0` for an exact release) resolves
+straight from the `uses:` line. No extra permissions beyond what's already
+declared in the files, no signup, and (via the public action) no source
+code exposed either way. Open a PR that touches infrastructure and you'll
+get:
 
 - a cost report + diff in the workflow run's **Summary** tab (GitHub's Step
   Summary, `cloudcosttree` writes it directly, nothing else to configure);
@@ -249,13 +253,15 @@ composite action at the repo root ([`action.yml`](action.yml)):
 
 Both workflows above are just a `uses:` call to the action at this repo's
 root: reference it yourself if you want a custom workflow instead of
-copying one of the examples:
+copying one of the examples. Pin `@v1` for the current major (it moves
+forward automatically on compatible releases), `@v1.0.0` for an exact
+release, or `@main` to always track the latest:
 
 ```yaml
 - uses: actions/checkout@v4
 
 - name: CloudCostTree
-  uses: rulssss/cloudcosttree@main
+  uses: rulssss/cloudcosttree@v1
   with:
     infra-path: ./infra # required
     baseline-path: "" # optional, set it to run in "diff" mode
@@ -273,7 +279,7 @@ the result:
 ```yaml
 - name: CloudCostTree
   id: cost
-  uses: rulssss/cloudcosttree@main
+  uses: rulssss/cloudcosttree@v1
   with:
     infra-path: ./infra
 
